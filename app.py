@@ -2,82 +2,97 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
+import time # Importamos time para dar un respiro antes de recargar
 
 # Configuración de página
 st.set_page_config(page_title="Buscador", layout="centered")
 
 # --- CONEXIÓN A GOOGLE SHEETS ---
+# Usamos cache_resource para no reconectar a Google cada vez que tocas un botón (hace la app más rápida)
+@st.cache_resource
 def conectar_sheet():
     try:
-        # Definimos el alcance
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        
-        # Leemos la llave secreta desde Streamlit Secrets
         json_creds = json.loads(st.secrets["general"]["google_json"])
-        
         creds = ServiceAccountCredentials.from_json_keyfile_dict(json_creds, scope)
         client = gspread.authorize(creds)
-        
-        # Abre la hoja por su nombre
-        # IMPORTANTE: Asegúrate de que tu hoja en Google se llame EXACTAMENTE "BuscadorDB"
+        # Asegúrate de que tu hoja se llame "BuscadorDB"
         sheet = client.open("BuscadorDB").sheet1
         return sheet
     except Exception as e:
         return None
 
-# Intentamos conectar
 hoja = conectar_sheet()
 
 st.title("📍 Buscador de Direcciones")
 
 if not hoja:
     st.error("⚠️ Error de conexión: No pude conectar con Google Sheets.")
-    st.info("Verifica: 1. Que el JSON esté bien pegado en Secrets. 2. Que hayas compartido la hoja con el correo del robot. 3. Que la hoja se llame 'BuscadorDB'.")
+    st.stop()
+
+# --- TRAER DATOS ---
+# Traemos los datos una vez al principio
+try:
+    registros = hoja.get_all_records()
+except Exception as e:
+    st.error(f"Error leyendo la base de datos: {e}")
     st.stop()
 
 # --- LÓGICA DE BÚSQUEDA ---
-busqueda = st.text_input("Escribe la dirección:", placeholder="Ej: Av. Reforma 123")
+busqueda = st.text_input("Escribe la dirección:", placeholder="Ej: Av. Reforma 123 o solo 123")
 
 if busqueda:
-    try:
-        # Obtenemos todos los registros de la nube
-        registros = hoja.get_all_records()
+    # Limpiamos lo que escribe el usuario (quitamos espacios extra)
+    texto_buscar = busqueda.strip().lower()
+    
+    # Buscamos TODAS las coincidencias, no solo la primera
+    # NOTA: Usamos 'Direccion' sin acento basándonos en tu captura de pantalla
+    resultados_encontrados = []
+    
+    for fila in registros:
+        # Obtenemos el valor de la dirección de la base de datos
+        # .get('Direccion') debe coincidir EXACTO con la cabecera de tu Excel/Sheet
+        direccion_db = str(fila.get('Direccion', '')).strip().lower()
         
-        # Lógica para encontrar coincidencia
-        encontrado = None
-        for fila in registros:
-            # Convierte a texto y minúsculas para comparar mejor
-            if busqueda.lower() in str(fila.get('Dirección', '')).lower():
-                encontrado = fila.get('Código', '')
-                break
+        if texto_buscar in direccion_db:
+            resultados_encontrados.append(fila)
+    
+    # --- MOSTRAR RESULTADOS ---
+    if len(resultados_encontrados) > 0:
+        st.success(f"✅ Se encontraron {len(resultados_encontrados)} registro(s):")
         
-        if encontrado:
-            st.success("✅ CÓDIGO ENCONTRADO:")
-            st.header(f"{encontrado}")
-        else:
-            st.warning(f"No existe registro para: '{busqueda}'")
-            st.markdown("---")
-            st.write("👇 **Registrar nuevo:**")
-            
-            with st.form("nuevo_form"):
-                nuevo_cod = st.text_input("Ingresa el código correcto:")
-                # Botón de envío
-                enviado = st.form_submit_button("Guardar en Nube ☁️")
+        # Mostramos cada resultado encontrado
+        for item in resultados_encontrados:
+            with st.container():
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.write(f"**Dirección:** {item.get('Direccion')}")
+                with col2:
+                    st.write(f"**Código:** {item.get('Codigo')}")
+                st.markdown("---")
                 
-                if enviado:
-                    if nuevo_cod:
-                        # Guardamos en la hoja de Google
-                        hoja.append_row([busqueda, nuevo_cod])
+    else:
+        # --- SI NO ENCUENTRA NADA, MUESTRA EL FORMULARIO ---
+        st.warning(f"No existe registro que contenga: '{busqueda}'")
+        st.markdown("### 👇 Registrar nuevo:")
+        
+        with st.form("nuevo_form"):
+            # Mostramos la dirección que no se encontró para no tener que escribirla de nuevo
+            st.write(f"Vas a registrar: **{busqueda}**")
+            nuevo_cod = st.text_input("Ingresa el código correcto:")
+            
+            enviado = st.form_submit_button("Guardar en Nube ☁️")
+            
+            if enviado:
+                if nuevo_cod:
+                    try:
+                        with st.spinner("Guardando..."):
+                            # Guardamos en la hoja de Google
+                            # NOTA: Asegúrate de guardar en el orden de tus columnas
+                            hoja.append_row([busqueda, nuevo_cod])
+                            
                         st.success("¡Guardado exitosamente!")
-                        st.balloons()
-                        # Un pequeño truco para limpiar la pantalla
-                        st.empty() 
-                    else:
-                        st.error("Por favor escribe un código.")
-
-    except Exception as e:
-        st.error(f"Ocurrió un error leyendo los datos: {e}")
-
-# (Opcional) Ver la base de datos completa abajo
-with st.expander("👮‍♂️ Admin: Ver todos los registros"):
-    st.dataframe(hoja.get_all_records())
+                        
+                        # --- EL TRUCO DE LA RECARGA ---
+                        time.sleep(1) # Esperamos 1 segundo para que Google procese
+                        st.rerun() # Reinicia la app para que aparezca el nuevo dato
