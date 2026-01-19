@@ -85,14 +85,21 @@ if busqueda:
             
             if enviado:
                 if nuevo_cod:
+                    # INCIO DEL BLOQUE TRY
                     try:
                         with st.spinner("Guardando..."):
                             # Guardamos en la hoja de Google
-                            # NOTA: Asegúrate de guardar en el orden de tus columnas
                             hoja.append_row([busqueda, nuevo_cod])
                             
                         st.success("¡Guardado exitosamente!")
                         
-                        # --- EL TRUCO DE LA RECARGA ---
-                        time.sleep(1) # Esperamos 1 segundo para que Google procese
-                        st.rerun() # Reinicia la app para que aparezca el nuevo dato
+                        # Esperamos 1 segundo y recargamos
+                        time.sleep(1) 
+                        st.rerun() 
+                        
+                    # ESTA ES LA PARTE QUE TE FALTABA O ESTABA DESALINEADA:
+                    except Exception as e:
+                        st.error(f"Error al guardar: {e}")
+                    # FIN DEL BLOQUE
+                else:
+                    st.error("Por favor escribe un código.")
