@@ -139,7 +139,7 @@ st.markdown("---") # Línea separadora
 st.markdown(
     """
     <div style='text-align: center; color: grey;'>
-        <small>Creado por <b>Julio Delgado</b></small>
+        <small>Creado por <b>Julio Delgado</b> | v2.0</small>
     </div>
     """, 
     unsafe_allow_html=True
