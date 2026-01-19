@@ -4,7 +4,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import json
 import time 
 import urllib.parse 
-import requests # Necesario para Telegram
+import requests 
 
 # Configuración de página
 st.set_page_config(page_title="Buscador", layout="centered")
@@ -100,7 +100,6 @@ if busqueda:
                                         item.get('Codigo'), nuevo_code_user, comentario_user
                                     ])
                                     st.success("✅ Reporte guardado.")
-                                    # Notificación a Telegram por reporte
                                     enviar_telegram(f"🚨 REPORTE DE ERROR\nDirección: {item.get('Direccion')}\nCódigo Viejo: {item.get('Codigo')}\nSugerido: {nuevo_code_user}\nNota: {comentario_user}")
                                 except:
                                     pass
@@ -126,7 +125,7 @@ if busqueda:
             
             nuevo_cod = st.text_input("Código de acceso:", placeholder="#1234")
             
-            enviado = st.form_submit_button("Guardar en Nube ☁️", use_container_width=True)
+            enviado = st.form_submit_button("Guardar", use_container_width=True)
             
             if enviado:
                 if nuevo_cod and nueva_ciudad and nuevo_estado:
@@ -134,7 +133,6 @@ if busqueda:
                         with st.spinner("Guardando..."):
                             hoja.append_row([busqueda, nueva_ciudad, nuevo_estado, nuevo_cod])
                             
-                            # --- ENVIAR NOTIFICACIÓN TELEGRAM ---
                             mensaje_aviso = f"🆕 NUEVO REGISTRO\n📍 {busqueda}\n🏙 {nueva_ciudad}, {nuevo_estado}\n🔑 Código: {nuevo_cod}"
                             enviar_telegram(mensaje_aviso)
                             
@@ -151,7 +149,7 @@ st.markdown("---")
 st.markdown(
     """
     <div style='text-align: center; color: grey;'>
-        <small>Creado por <b>Julio Delgado</b> | v3.0 (Con Notificaciones)</small>
+        <small>Creado por <b>Julio Delgado</b> | v3.1</small>
     </div>
     """, 
     unsafe_allow_html=True
