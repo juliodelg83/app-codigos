@@ -90,24 +90,31 @@ if busqueda:
                     with st.form(f"reporte_form_{item['_id']}"):
                         nuevo_code_user = st.text_input("¿Cuál es el código correcto?", placeholder="Nuevo código")
                         comentario_user = st.text_input("Comentarios:", placeholder="Detalles extra...")
+                        
+                        # CAMPO NUEVO PARA IDENTIFICARSE
+                        usuario_reporta = st.text_input("👤 Tu Teléfono o Nombre:", placeholder="Para saber quién reporta")
+
                         btn_reportar = st.form_submit_button("Registrar Reporte y Enviar 📩")
                         
                         if btn_reportar:
-                            if hoja_reportes:
-                                try:
-                                    hoja_reportes.append_row([
-                                        item.get('Direccion'), item.get('Ciudad'),
-                                        item.get('Codigo'), nuevo_code_user, comentario_user
-                                    ])
-                                    st.success("✅ Reporte guardado.")
-                                    enviar_telegram(f"🚨 <b>REPORTE DE ERROR</b>\n📍 {item.get('Direccion')}\n🔑 Viejo: {item.get('Codigo')} -> Nuevo: {nuevo_code_user}\n💬 Nota: {comentario_user}")
-                                except:
-                                    pass
-                            
-                            asunto = f"Correccion: {item.get('Direccion')}"
-                            cuerpo = f"El código {item.get('Codigo')} NO funciona.\nNuevo: {nuevo_code_user}\nNota: {comentario_user}"
-                            link = f"mailto:juliodelg@gmail.com?subject={urllib.parse.quote(asunto)}&body={urllib.parse.quote(cuerpo)}"
-                            st.markdown(f'<a href="{link}" target="_blank" style="display:inline-block;background:#d93025;color:white;padding:8px 15px;text-decoration:none;border-radius:5px;">📤 Enviar Correo</a>', unsafe_allow_html=True)
+                            if usuario_reporta:
+                                if hoja_reportes:
+                                    try:
+                                        hoja_reportes.append_row([
+                                            item.get('Direccion'), item.get('Ciudad'),
+                                            item.get('Codigo'), nuevo_code_user, comentario_user, usuario_reporta
+                                        ])
+                                        st.success("✅ Reporte guardado.")
+                                        enviar_telegram(f"🚨 <b>REPORTE DE ERROR</b>\n👤 Por: {usuario_reporta}\n📍 {item.get('Direccion')}\n🔑 Viejo: {item.get('Codigo')} -> Nuevo: {nuevo_code_user}\n💬 Nota: {comentario_user}")
+                                    except:
+                                        pass
+                                
+                                asunto = f"Correccion: {item.get('Direccion')}"
+                                cuerpo = f"El código {item.get('Codigo')} NO funciona.\nNuevo: {nuevo_code_user}\nNota: {comentario_user}\nReportado por: {usuario_reporta}"
+                                link = f"mailto:juliodelg@gmail.com?subject={urllib.parse.quote(asunto)}&body={urllib.parse.quote(cuerpo)}"
+                                st.markdown(f'<a href="{link}" target="_blank" style="display:inline-block;background:#d93025;color:white;padding:8px 15px;text-decoration:none;border-radius:5px;">📤 Enviar Correo</a>', unsafe_allow_html=True)
+                            else:
+                                st.error("⚠️ Por favor escribe tu nombre o teléfono.")
                 st.divider()
                 
     else:
@@ -125,15 +132,19 @@ if busqueda:
             
             nuevo_cod = st.text_input("Código de acceso:", placeholder="#1234")
             
+            # CAMPO NUEVO PARA IDENTIFICARSE
+            usuario_registra = st.text_input("👤 Tu Teléfono o Nombre:", placeholder="¿Quién registra?")
+            
             enviado = st.form_submit_button("Guardar", use_container_width=True)
             
             if enviado:
-                if nuevo_cod and nueva_ciudad and nuevo_estado:
+                if nuevo_cod and nueva_ciudad and nuevo_estado and usuario_registra:
                     try:
                         with st.spinner("Guardando..."):
-                            hoja.append_row([busqueda, nueva_ciudad, nuevo_estado, nuevo_cod])
+                            # Guardamos incluyendo el usuario al final
+                            hoja.append_row([busqueda, nueva_ciudad, nuevo_estado, nuevo_cod, usuario_registra])
                             
-                            mensaje_aviso = f"🆕 <b>NUEVO REGISTRO</b>\n📍 {busqueda}\n🏙 {nueva_ciudad}, {nuevo_estado}\n🔑 Código: {nuevo_cod}"
+                            mensaje_aviso = f"🆕 <b>NUEVO REGISTRO</b>\n👤 Por: {usuario_registra}\n📍 {busqueda}\n🏙 {nueva_ciudad}, {nuevo_estado}\n🔑 Código: {nuevo_cod}"
                             enviar_telegram(mensaje_aviso)
                             
                         st.success("¡Guardado exitosamente!")
@@ -142,14 +153,14 @@ if busqueda:
                     except Exception as e:
                         st.error(f"Error al guardar: {e}")
                 else:
-                    st.error("⚠️ Completa todos los campos.")
+                    st.error("⚠️ Completa todos los campos (incluyendo tu nombre/teléfono).")
 
 # --- FOOTER ---
 st.markdown("---") 
 st.markdown(
     """
     <div style='text-align: center; color: grey;'>
-        <small>Creado por <b>Julio Delgado</b> | v3.1</small>
+        <small>Creado por <b>Julio Delgado</b> | v3.2</small>
     </div>
     """, 
     unsafe_allow_html=True
