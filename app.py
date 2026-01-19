@@ -132,7 +132,120 @@ def mostrar_registro_inicial():
                         # Guardamos ENCRIPTADO
                         clave_secreta = encriptar(nueva_clave)
                         
+                        # Actualizamos las celdas una por una
                         hoja_usuarios.update_cell(f, 2, clave_secreta)
                         hoja_usuarios.update_cell(f, 3, nuevo_nombre)
                         hoja_usuarios.update_cell(f, 4, nuevo_apellido)
-                        hoja_usuarios.
+                        hoja_usuarios.update_cell(f, 5, nuevo_correo)
+                        
+                        st.session_state['datos_completos'] = True
+                        st.session_state['usuario_nombre'] = nuevo_nombre
+                        
+                        st.success("¡Perfil seguro creado!")
+                        enviar_telegram(f"👤 <b>REGISTRO SEGURO</b>\nUsuario: {nuevo_nombre} {nuevo_apellido}\nTel: {st.session_state['usuario_telefono']}")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error guardando: {e}")
+                else:
+                    st.error("Las contraseñas no coinciden.")
+            else:
+                st.error("Por favor llena todos los campos.")
+
+# ==========================================
+# 3. APP PRINCIPAL
+# ==========================================
+def mostrar_app():
+    with st.sidebar:
+        st.header(f"Hola, {st.session_state['usuario_nombre']}")
+        st.caption(f"📱 {st.session_state['usuario_telefono']}")
+        
+        if st.button("Cerrar Sesión"):
+            for key in st.session_state.keys():
+                del st.session_state[key]
+            st.rerun()
+
+    st.title("📍 Buscador de Direcciones")
+
+    if not hoja: st.error("Error DB"); st.stop()
+
+    try: registros = hoja.get_all_records()
+    except: st.stop()
+
+    busqueda = st.text_input("Escribe la dirección:", placeholder="Ej: 17811 Vail St")
+
+    if busqueda:
+        texto_buscar = busqueda.strip().lower()
+        resultados_encontrados = []
+        
+        for i, fila in enumerate(registros):
+            fila['_id'] = i 
+            direccion_db = str(fila.get('Direccion', '')).strip().lower()
+            if texto_buscar in direccion_db:
+                resultados_encontrados.append(fila)
+        
+        if len(resultados_encontrados) > 0:
+            st.success(f"✅ Encontrado ({len(resultados_encontrados)}):")
+            for item in resultados_encontrados:
+                with st.container():
+                    c1, c2, c3 = st.columns([3, 2, 1])
+                    with c1:
+                        st.caption("Dirección")
+                        st.write(f"**{item.get('Direccion')}**")
+                    with c2:
+                        st.caption("Ubicación")
+                        st.write(f"{item.get('Ciudad')}, {item.get('Estado')}")
+                    with c3:
+                        st.caption("Código")
+                        st.markdown(f"### {item.get('Codigo')}")
+                    
+                    with st.expander(f"🚨 Reportar fallo"):
+                        with st.form(f"reporte_{item['_id']}"):
+                            n_code = st.text_input("Código correcto:")
+                            nota = st.text_input("Nota:")
+                            if st.form_submit_button("Reportar"):
+                                if hoja_reportes:
+                                    hoja_reportes.append_row([item.get('Direccion'), item.get('Ciudad'), item.get('Codigo'), n_code, nota])
+                                    enviar_telegram(f"🚨 <b>REPORTE</b>\n👤 {st.session_state['usuario_nombre']}\n📍 {item.get('Direccion')}\n🔑 Nuevo: {n_code}")
+                                    st.success("Enviado.")
+                    st.divider()
+        else:
+            st.warning("No encontrado.")
+            st.markdown("### 👇 Registrar nuevo:")
+            with st.form("nuevo_form"):
+                st.write(f"Registrando: **{busqueda}**")
+                c1, c2 = st.columns(2)
+                with c1: ciu = st.text_input("Ciudad:")
+                with c2: est = st.text_input("Estado:")
+                cod = st.text_input("Código:")
+                if st.form_submit_button("Guardar", use_container_width=True):
+                    if cod and ciu and est:
+                        hoja.append_row([busqueda, ciu, est, cod])
+                        enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {st.session_state['usuario_nombre']}\n📍 {busqueda}\n🔑 {cod}")
+                        st.success("Guardado.")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("Faltan datos.")
+    
+    # --- FOOTER ---
+    st.markdown("---")
+    st.markdown(
+        """
+        <div style='text-align: center; color: grey;'>
+            <small>Creado por <b>Julio Delgado</b> | v5.1</small>
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
+
+# ==========================================
+#        CONTROL DE FLUJO
+# ==========================================
+if not st.session_state['logueado']:
+    mostrar_login()
+else:
+    if st.session_state['datos_completos']:
+        mostrar_app()
+    else:
+        mostrar_registro_inicial()
