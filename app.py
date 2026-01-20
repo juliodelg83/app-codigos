@@ -26,6 +26,9 @@ if 'usuario_telefono' not in st.session_state: st.session_state['usuario_telefon
 if 'usuario_nombre' not in st.session_state: st.session_state['usuario_nombre'] = ""
 if 'datos_completos' not in st.session_state: st.session_state['datos_completos'] = False
 
+# Variable para controlar el menú de navegación
+if 'seccion_activa' not in st.session_state: st.session_state['seccion_activa'] = "🔍 Buscador"
+
 # --- ENCRIPTACIÓN ---
 def encriptar(password):
     return hashlib.sha256(str(password).encode()).hexdigest()
@@ -145,23 +148,33 @@ def mostrar_registro_inicial():
 # ==========================================
 def mostrar_app():
     
-    # --- BARRA LATERAL ---
+    # --- BARRA LATERAL (BOTONES) ---
     with st.sidebar:
         st.markdown("# 👤") 
         st.write(f"Hola, **{st.session_state['usuario_nombre']}**")
         st.caption(f"📱 {st.session_state['usuario_telefono']}")
         st.markdown("---")
         
-        opcion = st.radio(
-            "Menú Principal", 
-            ["🔍 Buscador", "➕ Registrar Nueva", "💬 Sugerencias", "⚙️ Mi Perfil"],
-            label_visibility="collapsed"
-        )
+        # BOTONES DE NAVEGACIÓN
+        if st.button("🔍 Buscador", use_container_width=True):
+            st.session_state['seccion_activa'] = "🔍 Buscador"
+            
+        if st.button("➕ Registrar Nueva", use_container_width=True):
+            st.session_state['seccion_activa'] = "➕ Registrar Nueva"
+            
+        if st.button("💬 Sugerencias", use_container_width=True):
+            st.session_state['seccion_activa'] = "💬 Sugerencias"
+            
+        if st.button("⚙️ Mi Perfil", use_container_width=True):
+            st.session_state['seccion_activa'] = "⚙️ Mi Perfil"
         
         st.markdown("---")
         if st.button("Cerrar Sesión", use_container_width=True):
             for key in st.session_state.keys(): del st.session_state[key]
             st.rerun()
+
+    # Leemos la sección activa
+    opcion = st.session_state['seccion_activa']
 
     # ----------------------------------------------------
     # PANTALLA 1: BUSCADOR
@@ -214,7 +227,7 @@ def mostrar_app():
                                     st.success("Listo.")
                     st.divider()
         else:
-            st.info("👈 Usa el menú lateral si necesitas registrar una nueva dirección.")
+            st.info("👈 Usa el menú de botones si necesitas registrar una nueva.")
 
     # ----------------------------------------------------
     # PANTALLA 2: REGISTRAR NUEVA
@@ -256,12 +269,12 @@ def mostrar_app():
                     st.error("El mensaje no puede estar vacío.")
 
     # ----------------------------------------------------
-    # PANTALLA 4: MI PERFIL (COMPLETO)
+    # PANTALLA 4: MI PERFIL
     # ----------------------------------------------------
     elif opcion == "⚙️ Mi Perfil":
         st.title("⚙️ Configuración de Perfil")
         
-        # Pestañas para organizar
+        # Pestañas
         tab1, tab2 = st.tabs(["📝 Mis Datos", "🔑 Contraseña"])
         
         # --- PESTAÑA 1: MODIFICAR DATOS ---
@@ -276,7 +289,7 @@ def mostrar_app():
                 if st.form_submit_button("Actualizar Datos"):
                     if up_nombre and up_apellido and up_correo:
                         try:
-                            # Buscar usuario por teléfono para asegurar fila correcta
+                            # Buscar usuario por teléfono
                             usuarios_db = hoja_usuarios.get_all_records()
                             fila_encontrada = -1
                             
@@ -286,12 +299,11 @@ def mostrar_app():
                                     break
                             
                             if fila_encontrada > 0:
-                                # Actualizamos Nombre (Col 3), Apellido (Col 4), Correo (Col 5)
+                                # Actualizamos Datos
                                 hoja_usuarios.update_cell(fila_encontrada, 3, up_nombre)
                                 hoja_usuarios.update_cell(fila_encontrada, 4, up_apellido)
                                 hoja_usuarios.update_cell(fila_encontrada, 5, up_correo)
                                 
-                                # Actualizamos sesión visual
                                 st.session_state['usuario_nombre'] = f"{up_nombre} {up_apellido}"
                                 st.success("¡Información actualizada! Verás los cambios reflejados ahora.")
                                 time.sleep(1)
@@ -301,7 +313,7 @@ def mostrar_app():
                         except Exception as e:
                             st.error(f"Error de conexión: {e}")
                     else:
-                        st.error("Por favor completa todos los campos para actualizar.")
+                        st.error("Por favor completa todos los campos.")
 
         # --- PESTAÑA 2: CAMBIAR CLAVE ---
         with tab2:
@@ -334,7 +346,7 @@ def mostrar_app():
                         st.error("Las contraseñas nuevas no coinciden.")
 
     # Footer invisible
-    st.markdown("<div style='text-align: center; color: grey;'><small>v5.7</small></div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; color: grey;'><small>v5.7.1</small></div>", unsafe_allow_html=True)
 
 # ==========================================
 # CONTROL
