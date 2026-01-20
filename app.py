@@ -17,7 +17,7 @@ hide_st_style = """
             footer {visibility: hidden;}
             header {visibility: hidden;}
             
-            /* Ajuste botones inferiores */
+            /* Ajuste botones */
             div.stButton > button {
                 width: 100%;
                 border-radius: 8px;
@@ -39,8 +39,10 @@ if 'user_apellido' not in st.session_state: st.session_state['user_apellido'] = 
 if 'user_correo' not in st.session_state: st.session_state['user_correo'] = ""
 if 'datos_completos' not in st.session_state: st.session_state['datos_completos'] = False
 
-# Control de navegación (Por defecto: Buscador)
+# Control de navegación
 if 'seccion_activa' not in st.session_state: st.session_state['seccion_activa'] = "Buscador"
+# Control de vista Login vs Registro
+if 'modo_registro' not in st.session_state: st.session_state['modo_registro'] = False
 
 # --- ENCRIPTACIÓN ---
 def encriptar(password):
@@ -80,17 +82,69 @@ def conectar_sheet():
 hoja, hoja_reportes, hoja_usuarios = conectar_sheet()
 
 # ==========================================
-# 1. PANTALLA DE INGRESO Y REGISTRO
+# 1. SISTEMA DE ACCESO (LOGIN / REGISTRO)
 # ==========================================
 def mostrar_login():
     st.markdown("<br>", unsafe_allow_html=True)
-    st.title("🔒 Acceso App")
     
-    # Usamos Tabs para separar Login de Registro
-    tab_login, tab_registro = st.tabs(["Ingresar", "Crear Cuenta"])
-    
-    # --- TAB 1: LOGIN ---
-    with tab_login:
+    # --- VISTA 1: FORMULARIO DE REGISTRO (CREAR CUENTA) ---
+    if st.session_state['modo_registro']:
+        st.title("📝 Solicitar Cuenta")
+        st.caption("Llena tus datos. El administrador deberá aprobarte.")
+        
+        with st.form("registro_nuevo"):
+            reg_nombre = st.text_input("Nombre:")
+            reg_apellido = st.text_input("Apellido:")
+            reg_tel = st.text_input("Teléfono:")
+            reg_correo = st.text_input("Correo:")
+            reg_pass = st.text_input("Contraseña:", type="password")
+            
+            btn_registrar = st.form_submit_button("Enviar Solicitud", use_container_width=True)
+            
+            if btn_registrar:
+                if reg_nombre and reg_tel and reg_pass:
+                    if hoja_usuarios:
+                        try:
+                            # Verificar duplicados
+                            usuarios_db = hoja_usuarios.get_all_records()
+                            existe = False
+                            for u in usuarios_db:
+                                if str(u.get('Telefono', '')).strip() == reg_tel.strip():
+                                    existe = True
+                                    break
+                            
+                            if existe:
+                                st.error("⚠️ Este teléfono ya está registrado.")
+                            else:
+                                # GUARDAR COMO PENDIENTE
+                                hoja_usuarios.append_row([
+                                    reg_tel, 
+                                    encriptar(reg_pass), 
+                                    reg_nombre, 
+                                    reg_apellido, 
+                                    reg_correo, 
+                                    "Pendiente"
+                                ])
+                                enviar_telegram(f"🔔 <b>NUEVO USUARIO</b>\n👤 {reg_nombre} {reg_apellido}\n📱 {reg_tel}\n⚠️ <b>Estado:</b> Pendiente")
+                                st.success("✅ Solicitud enviada con éxito.")
+                                st.info("Espera a que el administrador active tu cuenta.")
+                                time.sleep(4)
+                                st.session_state['modo_registro'] = False # Volver al login
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+                else:
+                    st.error("Faltan datos obligatorios.")
+        
+        st.markdown("---")
+        if st.button("⬅️ Volver al Ingreso", use_container_width=True):
+            st.session_state['modo_registro'] = False
+            st.rerun()
+
+    # --- VISTA 2: LOGIN (ENTRAR) ---
+    else:
+        st.title("🔒 Ingreso")
+        
         with st.form("login_form"):
             tel_input = st.text_input("📱 Teléfono")
             pass_input = st.text_input("🔑 Contraseña", type="password")
@@ -101,13 +155,12 @@ def mostrar_login():
                     try:
                         usuarios_db = hoja_usuarios.get_all_records()
                         encontrado = False
-                        status_ok = False
                         
                         for i, u in enumerate(usuarios_db):
                             fila_excel = i + 2
                             db_tel = str(u.get('Telefono', '')).strip()
                             db_pass = str(u.get('Password', '')).strip()
-                            db_estado = str(u.get('Estado', '')).strip() # Columna F
+                            db_estado = str(u.get('Estado', '')).strip()
                             
                             es_temporal = (db_pass == pass_input.strip())
                             es_encriptada = (db_pass == encriptar(pass_input.strip()))
@@ -115,13 +168,12 @@ def mostrar_login():
                             if db_tel == tel_input.strip() and (es_temporal or es_encriptada):
                                 encontrado = True
                                 
-                                # VERIFICAMOS SI ESTÁ ACTIVO
                                 if db_estado.lower() == "activo":
-                                    status_ok = True
                                     st.session_state['logueado'] = True
                                     st.session_state['usuario_telefono'] = db_tel
                                     st.session_state['fila_usuario'] = fila_excel 
                                     
+                                    # Cargar datos
                                     nombre_db = str(u.get('Nombre', '')).strip()
                                     apellido_db = str(u.get('Apellido', '')).strip()
                                     correo_db = str(u.get('Correo', '')).strip()
@@ -136,11 +188,11 @@ def mostrar_login():
                                     else:
                                         st.session_state['datos_completos'] = False
                                     
-                                    st.success(f"¡Bienvenido {nombre_db}!")
+                                    st.success(f"¡Hola {nombre_db}!")
                                     time.sleep(0.5)
                                     st.rerun()
                                 else:
-                                    st.warning("⏳ Tu cuenta está **Pendiente de Aprobación**. Contacta al administrador.")
+                                    st.warning("⏳ Cuenta Pendiente. Contacta al administrador.")
                                 break
                         
                         if not encontrado:
@@ -148,58 +200,16 @@ def mostrar_login():
                     except Exception as e:
                         st.error(f"Error: {e}")
 
-    # --- TAB 2: REGISTRO NUEVO ---
-    with tab_registro:
-        st.caption("Llena tus datos para solicitar acceso.")
-        with st.form("registro_nuevo"):
-            reg_nombre = st.text_input("Nombre:")
-            reg_apellido = st.text_input("Apellido:")
-            reg_tel = st.text_input("Teléfono:")
-            reg_correo = st.text_input("Correo:")
-            reg_pass = st.text_input("Contraseña:", type="password")
-            
-            btn_registrar = st.form_submit_button("Solicitar Cuenta", use_container_width=True)
-            
-            if btn_registrar:
-                if reg_nombre and reg_tel and reg_pass:
-                    if hoja_usuarios:
-                        try:
-                            # Verificar si ya existe el teléfono
-                            usuarios_db = hoja_usuarios.get_all_records()
-                            existe = False
-                            for u in usuarios_db:
-                                if str(u.get('Telefono', '')).strip() == reg_tel.strip():
-                                    existe = True
-                                    break
-                            
-                            if existe:
-                                st.error("⚠️ Este teléfono ya está registrado.")
-                            else:
-                                # GUARDAMOS COMO PENDIENTE
-                                # Orden: Tel, Pass, Nom, Ape, Corr, ESTADO
-                                hoja_usuarios.append_row([
-                                    reg_tel, 
-                                    encriptar(reg_pass), 
-                                    reg_nombre, 
-                                    reg_apellido, 
-                                    reg_correo, 
-                                    "Pendiente"
-                                ])
-                                
-                                enviar_telegram(f"🔔 <b>NUEVO USUARIO</b>\n👤 {reg_nombre} {reg_apellido}\n📱 {reg_tel}\n⚠️ <b>Estado:</b> Pendiente (Requiere Aprobación)")
-                                
-                                st.success("✅ Solicitud enviada.")
-                                st.info("El administrador debe aprobar tu cuenta antes de que puedas entrar.")
-                        except Exception as e:
-                            st.error(f"Error: {e}")
-                else:
-                    st.error("Nombre, Teléfono y Contraseña son obligatorios.")
+        # BOTÓN DE CREAR CUENTA (FUERA DEL FORM)
+        st.write("") # Espacio
+        st.markdown("¿No tienes cuenta?")
+        if st.button("📝 Crear Cuenta Nueva", use_container_width=True):
+            st.session_state['modo_registro'] = True
+            st.rerun()
 
 # ==========================================
-# 2. PANTALLA DE "PRIMERA VEZ" (SOLO SI FALTAN DATOS)
+# 2. PANTALLA DE PERFIL INICIAL (SOLO SI FALTAN DATOS)
 # ==========================================
-# Esta función es rara que se use ahora que tenemos registro completo, 
-# pero la dejamos por seguridad si alguien entra manual.
 def mostrar_registro_inicial():
     st.title("👋 Completar Perfil")
     with st.form("registro_form"):
@@ -213,7 +223,6 @@ def mostrar_registro_inicial():
             if nuevo_nombre:
                 try:
                     f = st.session_state['fila_usuario']
-                    # Actualizamos datos base
                     hoja_usuarios.update_cell(f, 3, nuevo_nombre)
                     hoja_usuarios.update_cell(f, 4, nuevo_apellido)
                     hoja_usuarios.update_cell(f, 5, nuevo_correo)
