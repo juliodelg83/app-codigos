@@ -13,19 +13,18 @@ from datetime import datetime
 # ==========================================
 ADMIN_TELEFONO = "2142595696"
 LINK_TELEGRAM = "https://t.me/BuscadordecodigosBot" 
-LOGO_MAPA = "https://share.google/lYGxwInu3n38g4bI4"
 
 # Configuración de página
 st.set_page_config(page_title="App Direcciones", layout="centered")
 
-# --- 🎨 CSS MEJORADO (SOLUCIÓN PANTALLA NEGRA) ---
+# --- 🎨 CSS ---
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
             header {visibility: hidden;}
             
-            /* Estilo general de botones de Streamlit */
+            /* Estilo general de botones */
             div.stButton > button {
                 width: 100%;
                 border-radius: 8px;
@@ -53,17 +52,6 @@ hide_st_style = """
                 background-color: #0088cc;
                 color: white !important;
                 text-decoration: none;
-            }
-            .telegram-btn:active {
-                color: white !important;
-                text-decoration: none;
-            }
-
-            /* Ajuste para centrar imagen del logo */
-            div[data-testid="stImage"] {
-                display: flex;
-                align-items: center;
-                justify-content: center;
             }
             </style>
             """
@@ -184,14 +172,10 @@ def mostrar_acceso():
             st.session_state['vista_admin_login'] = False
             st.rerun()
 
-    # --- 🗺️ PANTALLA DE BIENVENIDA ---
+    # --- 🗺️ PANTALLA DE BIENVENIDA (VERSIÓN EMOJI) ---
     else:
-        col_logo, col_texto = st.columns([1, 4])
-        with col_logo:
-            st.image(LOGO_MAPA, width=80) 
-        with col_texto:
-            st.title("Bienvenido")
-
+        # ✅ Título con emoji
+        st.title("🗺️ Bienvenido")
         st.write("Ingresa tus datos para acceder:")
         
         with st.form("form_acceso"):
@@ -230,7 +214,7 @@ def mostrar_acceso():
                                 iniciar_sesion(tel, nom, ape, "", len(usuarios_db) + 2)
                         except Exception as e: st.error(f"Error: {e}")
 
-        # ✅ BOTÓN TELEGRAM CORREGIDO (AZUL Y HTML PURO)
+        # ✅ BOTÓN AZUL TELEGRAM
         st.write("")
         st.markdown(f'''
             <a href="{LINK_TELEGRAM}" target="_blank" class="telegram-btn">
@@ -263,13 +247,12 @@ def iniciar_sesion(tel, nombre, apellido, correo, fila):
 def mostrar_app():
     es_admin = (st.session_state['usuario_telefono'] == ADMIN_TELEFONO)
     
-    # ✅ CABECERA CON BOTÓN AZUL PEQUEÑO
+    # Header con botón pequeño
     c_head_1, c_head_2 = st.columns([3, 1])
     with c_head_1:
         st.markdown(f"### 👋 Hola, {st.session_state['user_nombre']}")
         if es_admin: st.caption("🛡️ Modo Admin")
     with c_head_2:
-        # Botón pequeño azul
         st.markdown(f'''
             <a href="{LINK_TELEGRAM}" target="_blank" class="telegram-btn" style="padding: 5px 10px; font-size: 0.8rem; margin: 0;">
                 📱 Bot
@@ -372,7 +355,6 @@ def mostrar_app():
     elif seccion == "Perfil":
         st.subheader("⚙️ Mi Perfil")
         st.write(f"📱 **{st.session_state['usuario_telefono']}**")
-        # Botón Azul
         st.markdown(f'''
             <a href="{LINK_TELEGRAM}" target="_blank" class="telegram-btn">
                 ✈️ Abrir @BuscadordecodigosBot
