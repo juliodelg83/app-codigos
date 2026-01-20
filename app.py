@@ -10,6 +10,16 @@ import hashlib
 # Configuración de página
 st.set_page_config(page_title="Acceso Seguro", layout="centered")
 
+# --- 🎨 OCULTAR LA BARRA DE STREAMLIT Y CÓDIGO (CSS) ---
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
 # --- VARIABLES DE SESIÓN ---
 if 'logueado' not in st.session_state: st.session_state['logueado'] = False
 if 'usuario_telefono' not in st.session_state: st.session_state['usuario_telefono'] = ""
@@ -145,12 +155,11 @@ def mostrar_app():
     except: st.stop()
 
     # --- LISTA PARA AUTOCOMPLETAR ---
-    # Creamos la lista de opciones para el buscador
     lista_direcciones = []
     if registros:
         lista_direcciones = [str(r.get('Direccion', '')) for r in registros if r.get('Direccion')]
 
-    # 1. BUSCADOR CON AUTOCOMPLETADO
+    # 1. BUSCADOR
     busqueda_seleccion = st.selectbox(
         "🔍 Buscar dirección:", 
         options=lista_direcciones, 
@@ -160,9 +169,8 @@ def mostrar_app():
 
     # 2. LÓGICA
     if busqueda_seleccion:
-        # --- CASO A: SI ENCONTRÓ ALGO ---
+        # --- CASO A: SI ENCONTRÓ ---
         resultados = [r for i, r in enumerate(registros) if str(r.get('Direccion', '')) == busqueda_seleccion]
-        # (Asignamos ID manual para el reporte)
         for i, r in enumerate(registros):
             if str(r.get('Direccion', '')) == busqueda_seleccion:
                 r['_id'] = i
@@ -194,7 +202,7 @@ def mostrar_app():
                 st.divider()
 
     else:
-        # --- CASO B: NO SELECCIONÓ NADA (REGISTRO) ---
+        # --- CASO B: REGISTRO ---
         st.info("👆 Usa el buscador de arriba. Si no aparece, regístrala aquí abajo:")
         
         with st.form("auto_registro"):
@@ -229,7 +237,7 @@ def mostrar_app():
                 enviar_telegram(f"💡 <b>SUGERENCIA</b>\n👤 {st.session_state['usuario_nombre']}\n💬 {msg}")
                 st.success("Enviado.")
 
-    st.markdown("<div style='text-align: center; color: grey;'><small>v5.5</small></div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; color: grey;'><small>v5.6</small></div>", unsafe_allow_html=True)
 
 # ==========================================
 # CONTROL
