@@ -39,7 +39,6 @@ if 'user_correo' not in st.session_state: st.session_state['user_correo'] = ""
 if 'datos_completos' not in st.session_state: st.session_state['datos_completos'] = False
 
 if 'seccion_activa' not in st.session_state: st.session_state['seccion_activa'] = "Buscador"
-if 'modo_registro' not in st.session_state: st.session_state['modo_registro'] = False
 
 # --- UTILS ---
 def get_time():
@@ -68,14 +67,15 @@ def conectar_sheet():
 hoja, hoja_reportes, hoja_usuarios = conectar_sheet()
 
 # ==========================================
-# ⚙️ LÓGICA DE AUTO-LOGIN (PERSISTENCIA)
+# ⚙️ LÓGICA DE AUTO-LOGIN
 # ==========================================
 def intentar_autologin():
-    # Verificamos si hay un usuario guardado en la URL (Query Params)
     query_params = st.query_params
     movil_guardado = query_params.get("movil", None)
 
     if movil_guardado and not st.session_state['logueado']:
+        if not movil_guardado.isdigit() or len(movil_guardado) != 10: return False
+
         if hoja_usuarios:
             try:
                 usuarios_db = hoja_usuarios.get_all_records()
@@ -84,124 +84,116 @@ def intentar_autologin():
                     db_estado = str(u.get('Estado', '')).strip().lower()
                     
                     if db_tel == movil_guardado:
-                        es_admin = (db_tel == ADMIN_TELEFONO)
+                        # Si está desactivado, NO entra
+                        if db_estado == "desactivado": return False
                         
-                        if db_estado == "activo" or es_admin:
-                            st.session_state['logueado'] = True
-                            st.session_state['usuario_telefono'] = db_tel
-                            st.session_state['fila_usuario'] = i + 2
-                            st.session_state['user_nombre'] = str(u.get('Nombre', '')).strip()
-                            st.session_state['user_apellido'] = str(u.get('Apellido', '')).strip()
-                            st.session_state['user_correo'] = str(u.get('Correo', '')).strip()
-                            st.session_state['usuario_nombre_completo'] = f"{st.session_state['user_nombre']} {st.session_state['user_apellido']}"
-                            st.session_state['datos_completos'] = True
-                            st.toast(f"Reconexión exitosa: {st.session_state['user_nombre']}")
-                            return True
+                        # Si está activo o pendiente (o cualquier otra cosa), entra
+                        st.session_state['logueado'] = True
+                        st.session_state['usuario_telefono'] = db_tel
+                        st.session_state['fila_usuario'] = i + 2
+                        st.session_state['user_nombre'] = str(u.get('Nombre', '')).strip()
+                        st.session_state['user_apellido'] = str(u.get('Apellido', '')).strip()
+                        st.session_state['user_correo'] = str(u.get('Correo', '')).strip()
+                        st.session_state['usuario_nombre_completo'] = f"{st.session_state['user_nombre']} {st.session_state['user_apellido']}"
+                        st.session_state['datos_completos'] = True
+                        st.toast(f"Reconexión rápida: {st.session_state['user_nombre']}")
+                        return True
             except: pass
     return False
 
-# Ejecutamos autologin al cargar
 if not st.session_state['logueado']:
     intentar_autologin()
 
 # ==========================================
-# 1. SISTEMA DE ACCESO
+# 1. PANTALLA ÚNICA DE ACCESO
 # ==========================================
-def mostrar_login():
+def mostrar_acceso():
     st.markdown("<br>", unsafe_allow_html=True)
+    st.title("📍 Bienvenido")
+    st.write("Ingresa tus datos para acceder.")
     
-    # --- VISTA REGISTRO ---
-    if st.session_state['modo_registro']:
-        st.title("📝 Registro Rápido")
-        st.caption("Solo necesitas tu nombre y teléfono.")
+    with st.form("form_acceso"):
+        st.caption("Solo números sin el +1 (Ej: 2145550000)")
+        tel = st.text_input("📱 Teléfono (10 dígitos):", max_chars=10)
         
-        with st.form("registro_nuevo"):
-            reg_tel = st.text_input("📱 Tu Teléfono (Será tu usuario):")
-            reg_nombre = st.text_input("👤 Tu Nombre:")
-            reg_apellido = st.text_input("👤 Tu Apellido:")
-            
-            if st.form_submit_button("Solicitar Acceso", use_container_width=True):
-                if reg_nombre and reg_tel and reg_apellido:
-                    if hoja_usuarios:
-                        try:
-                            usuarios_db = hoja_usuarios.get_all_records()
-                            existe = False
-                            for u in usuarios_db:
-                                if str(u.get('Telefono', '')).strip() == reg_tel.strip():
-                                    existe = True; break
-                            
-                            if existe:
-                                st.error("⚠️ Este teléfono ya existe.")
-                            else:
-                                hoja_usuarios.append_row([
-                                    reg_tel, "N/A", reg_nombre, reg_apellido, "", "Pendiente"
-                                ])
-                                enviar_telegram(f"🔔 <b>SOLICITUD</b>\n👤 {reg_nombre} {reg_apellido}\n📱 {reg_tel}\n⚠️ Estado: Pendiente")
-                                st.success("✅ Enviado. Espera la aprobación.")
-                                time.sleep(3)
-                                st.session_state['modo_registro'] = False
-                                st.rerun()
-                        except Exception as e: st.error(f"Error: {e}")
-                else: st.error("Todos los datos son obligatorios.")
+        c1, c2 = st.columns(2)
+        with c1: nom = st.text_input("👤 Nombre:")
+        with c2: ape = st.text_input("👤 Apellido:")
         
-        st.markdown("---")
-        if st.button("⬅️ Volver", use_container_width=True):
-            st.session_state['modo_registro'] = False
-            st.rerun()
-
-    # --- VISTA LOGIN ---
-    else:
-        st.title("👋 Bienvenido")
-        st.write("Ingresa tu número para conectar.")
+        entrar = st.form_submit_button("Ingresar a la App", use_container_width=True)
         
-        with st.form("login_form"):
-            tel_input = st.text_input("📱 Número de Teléfono")
-            entrar = st.form_submit_button("Conectar", use_container_width=True)
-            
-            if entrar:
-                if hoja_usuarios:
-                    try:
-                        usuarios_db = hoja_usuarios.get_all_records()
-                        encontrado = False
-                        for i, u in enumerate(usuarios_db):
-                            db_tel = str(u.get('Telefono', '')).strip()
+        if entrar:
+            # 1. VALIDACIONES
+            if not tel.isdigit():
+                st.error("⚠️ El teléfono solo debe contener números.")
+                st.stop()
+            if len(tel) != 10:
+                st.error("⚠️ El teléfono debe tener 10 dígitos.")
+                st.stop()
+            if not nom or not ape:
+                st.error("⚠️ Nombre y Apellido son obligatorios.")
+                st.stop()
+                
+            # 2. PROCESO DE INGRESO
+            if hoja_usuarios:
+                try:
+                    usuarios_db = hoja_usuarios.get_all_records()
+                    encontrado = False
+                    
+                    # Buscamos si ya existe
+                    for i, u in enumerate(usuarios_db):
+                        db_tel = str(u.get('Telefono', '')).strip()
+                        
+                        if db_tel == tel:
+                            encontrado = True
                             db_estado = str(u.get('Estado', '')).strip().lower()
                             
-                            if db_tel == tel_input.strip():
-                                encontrado = True
-                                es_admin = (db_tel == ADMIN_TELEFONO)
-                                
-                                if db_estado == "activo" or es_admin:
-                                    st.session_state['logueado'] = True
-                                    st.session_state['usuario_telefono'] = db_tel
-                                    st.session_state['fila_usuario'] = i + 2
-                                    st.session_state['user_nombre'] = str(u.get('Nombre', '')).strip()
-                                    st.session_state['user_apellido'] = str(u.get('Apellido', '')).strip()
-                                    st.session_state['user_correo'] = str(u.get('Correo', '')).strip()
-                                    st.session_state['usuario_nombre_completo'] = f"{st.session_state['user_nombre']} {st.session_state['user_apellido']}"
-                                    st.session_state['datos_completos'] = True
-                                    
-                                    # --- AQUÍ GUARDAMOS EL USUARIO EN LA URL ---
-                                    st.query_params["movil"] = db_tel
-                                    
-                                    st.success(f"¡Conectado como {st.session_state['user_nombre']}!")
-                                    time.sleep(0.5)
-                                    st.rerun()
-                                
-                                elif db_estado == "pendiente":
-                                    st.warning("⏳ Pendiente de aprobación.")
-                                elif db_estado == "desactivado":
-                                    st.error("⛔ Usuario desactivado.")
-                                break
+                            # Si está BLOQUEADO por ti, no entra
+                            if db_estado == "desactivado":
+                                st.error("⛔ Acceso denegado. Contacta al administrador.")
+                                st.stop()
+                            
+                            # Si existe y no está bloqueado, actualizamos nombre (por si corrigió) y entra
+                            fila = i + 2
+                            # Opcional: Actualizar nombre en Excel si cambió
+                            if str(u.get('Nombre','')) != nom or str(u.get('Apellido','')) != ape:
+                                hoja_usuarios.update_cell(fila, 3, nom)
+                                hoja_usuarios.update_cell(fila, 4, ape)
+                            
+                            # Login
+                            iniciar_sesion(tel, nom, ape, str(u.get('Correo','')), fila)
+                            break
+                    
+                    # Si NO existe, lo creamos y entra de una vez
+                    if not encontrado:
+                        # Lo guardamos como "Activo" directamente para que no tengas que aprobar
+                        # Estructura: Telefono, Pass(NA), Nombre, Apellido, Correo, Estado
+                        hoja_usuarios.append_row([tel, "N/A", nom, ape, "", "Activo"])
                         
-                        if not encontrado:
-                            st.error("Número no encontrado.")
-                    except Exception as e: st.error(f"Error: {e}")
+                        # Te avisamos a ti
+                        enviar_telegram(f"🆕 <b>NUEVO USUARIO (Acceso Auto)</b>\n👤 {nom} {ape}\n📱 {tel}")
+                        
+                        # Login inmediato (calculamos la fila aproximada)
+                        iniciar_sesion(tel, nom, ape, "", len(usuarios_db) + 2)
+                        
+                except Exception as e: st.error(f"Error de conexión: {e}")
 
-        st.write("")
-        if st.button("📝 Registrarse", use_container_width=True):
-            st.session_state['modo_registro'] = True
-            st.rerun()
+def iniciar_sesion(tel, nombre, apellido, correo, fila):
+    st.session_state['logueado'] = True
+    st.session_state['usuario_telefono'] = tel
+    st.session_state['fila_usuario'] = fila
+    st.session_state['user_nombre'] = nombre
+    st.session_state['user_apellido'] = apellido
+    st.session_state['user_correo'] = correo
+    st.session_state['usuario_nombre_completo'] = f"{nombre} {apellido}"
+    st.session_state['datos_completos'] = True
+    
+    # Guardamos en URL para que no pida datos la próxima vez
+    st.query_params["movil"] = tel
+    
+    st.success(f"¡Hola {nombre}!")
+    time.sleep(0.5)
+    st.rerun()
 
 # ==========================================
 # 2. APP PRINCIPAL
@@ -293,40 +285,34 @@ def mostrar_app():
 
     # --- ADMIN ---
     elif seccion == "Admin" and es_admin:
-        st.subheader("👮 Admin")
+        st.subheader("👮 Panel de Control")
         if not hoja_usuarios: st.stop()
         try:
             todos_usuarios = hoja_usuarios.get_all_records()
-            tab_pend, tab_act, tab_todos = st.tabs(["⏳ Pendientes", "✅ Activos", "👥 Todos"])
+            tab_act, tab_bloq, tab_todos = st.tabs(["✅ Activos", "⛔ Bloqueados", "👥 Todos"])
             
-            with tab_pend:
-                pendientes = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'pendiente']
-                if not pendientes: st.info("Sin solicitudes.")
-                else:
-                    for p in pendientes:
-                        idx = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == p['Telefono']), -1) + 2
-                        with st.container(border=True):
-                            st.write(f"**{p.get('Nombre')} {p.get('Apellido')}**")
-                            st.caption(f"📱 {p.get('Telefono')}")
-                            c1, c2 = st.columns(2)
-                            with c1:
-                                if st.button("Aprobar", key=f"a_{p['Telefono']}", type="primary"):
-                                    hoja_usuarios.update_cell(idx, 6, "Activo")
-                                    st.toast("Aprobado"); time.sleep(1); st.rerun()
-                            with c2:
-                                if st.button("Bloquear", key=f"b_{p['Telefono']}"):
-                                    hoja_usuarios.update_cell(idx, 6, "Desactivado")
-                                    st.toast("Bloqueado"); time.sleep(1); st.rerun()
             with tab_act:
                 activos = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'activo']
-                st.metric("Activos", len(activos))
+                st.metric("Usuarios Activos", len(activos))
                 for a in activos:
                     idx = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == a['Telefono']), -1) + 2
                     with st.expander(f"🟢 {a.get('Nombre')} {a.get('Apellido')}"):
                         st.caption(f"📱 {a.get('Telefono')}")
-                        if st.button("Desactivar", key=f"d_{a['Telefono']}"):
+                        if st.button("Bloquear Acceso", key=f"d_{a['Telefono']}"):
                             hoja_usuarios.update_cell(idx, 6, "Desactivado")
                             st.rerun()
+            
+            with tab_bloq:
+                bloq = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'desactivado']
+                if not bloq: st.info("Nadie bloqueado.")
+                for b in bloq:
+                    idx = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == b['Telefono']), -1) + 2
+                    with st.container(border=True):
+                        st.write(f"🔴 {b.get('Nombre')} {b.get('Apellido')}")
+                        if st.button("Desbloquear (Permitir)", key=f"re_{b['Telefono']}"):
+                            hoja_usuarios.update_cell(idx, 6, "Activo")
+                            st.rerun()
+
             with tab_todos:
                 visibles = [{k: v for k, v in u.items() if k != 'Password'} for u in todos_usuarios]
                 st.dataframe(visibles)
@@ -349,10 +335,10 @@ def mostrar_app():
             if st.button("👮 Admin", use_container_width=True): st.session_state['seccion_activa'] = "Admin"; st.rerun()
 
     st.write("")
-    if st.button("🚪 Salir (Desconectar)", use_container_width=True):
-        st.query_params.clear() # Borramos la memoria de la URL
+    if st.button("🚪 Desconectar", use_container_width=True):
+        st.query_params.clear()
         for key in st.session_state.keys(): del st.session_state[key]
         st.rerun()
 
-if not st.session_state['logueado']: mostrar_login()
+if not st.session_state['logueado']: mostrar_acceso()
 else: mostrar_app()
