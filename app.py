@@ -11,7 +11,6 @@ import hashlib
 st.set_page_config(page_title="App Direcciones", layout="centered")
 
 # --- 🎨 CSS: ESTILO MÓVIL ---
-# Ocultamos header y footer, y ajustamos los botones de abajo para que quepa el texto
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -170,13 +169,8 @@ def mostrar_registro_inicial():
 def mostrar_app():
     
     # --- CABECERA ---
-    col_saludo_1, col_saludo_2 = st.columns([3, 1])
-    with col_saludo_1:
-        st.markdown(f"### 👋 Hola, {st.session_state['user_nombre']}")
-        st.caption("Bienvenido al Buscador")
-    with col_saludo_2:
-        pass 
-
+    # Solo el saludo, sin subtítulos extra
+    st.markdown(f"### 👋 Hola, {st.session_state['user_nombre']}")
     st.markdown("---")
 
     # --- CONTENIDO SEGÚN SECCIÓN ---
@@ -190,7 +184,8 @@ def mostrar_app():
         
         lista_dirs = [str(r.get('Direccion', '')) for r in registros if r.get('Direccion')]
         
-        st.subheader("🔍 Buscar")
+        # CAMBIO AQUÍ: Título más claro
+        st.subheader("🔍 Buscar Dirección")
         busqueda = st.selectbox("Escribe dirección:", options=lista_dirs, index=None, placeholder="Tocá aquí para buscar...")
         
         if busqueda:
@@ -253,77 +248,3 @@ def mostrar_app():
     # 4. PERFIL
     elif seccion == "Perfil":
         st.subheader("⚙️ Mi Perfil")
-        tab1, tab2 = st.tabs(["Mis Datos", "Contraseña"])
-        
-        with tab1:
-            with st.form("edit_perfil"):
-                un = st.text_input("Nombre:", value=st.session_state['user_nombre'])
-                ua = st.text_input("Apellido:", value=st.session_state['user_apellido'])
-                uc = st.text_input("Correo:", value=st.session_state['user_correo'])
-                if st.form_submit_button("Actualizar Datos"):
-                    usuarios_db = hoja_usuarios.get_all_records()
-                    for i, u in enumerate(usuarios_db):
-                        if str(u.get('Telefono', '')).strip() == st.session_state['usuario_telefono']:
-                            hoja_usuarios.update_cell(i+2, 3, un)
-                            hoja_usuarios.update_cell(i+2, 4, ua)
-                            hoja_usuarios.update_cell(i+2, 5, uc)
-                            st.session_state['user_nombre'] = un
-                            st.session_state['user_apellido'] = ua
-                            st.session_state['user_correo'] = uc
-                            st.session_state['usuario_nombre_completo'] = f"{un} {ua}"
-                            st.success("Actualizado")
-                            time.sleep(1)
-                            st.rerun()
-
-        with tab2:
-            with st.form("edit_pass"):
-                ca = st.text_input("Actual:", type="password")
-                cn = st.text_input("Nueva:", type="password")
-                cc = st.text_input("Repetir:", type="password")
-                if st.form_submit_button("Cambiar Clave"):
-                    usuarios_db = hoja_usuarios.get_all_records()
-                    for i, u in enumerate(usuarios_db):
-                        if str(u.get('Telefono', '')).strip() == st.session_state['usuario_telefono']:
-                            if str(u.get('Password','')).strip() == encriptar(ca):
-                                if cn == cc:
-                                    hoja_usuarios.update_cell(i+2, 2, encriptar(cn))
-                                    st.success("Clave cambiada")
-                                else: st.error("No coinciden")
-                            else: st.error("Clave actual mal")
-
-    # --- BARRA DE NAVEGACIÓN INFERIOR (CON NOMBRES) ---
-    st.markdown("---")
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # 5 Columnas para el menú
-    c_nav1, c_nav2, c_nav3, c_nav4, c_nav5 = st.columns(5)
-    
-    with c_nav1:
-        # Usamos texto corto para que quepa en el celular
-        if st.button("🔍 Buscar", use_container_width=True):
-            st.session_state['seccion_activa'] = "Buscador"
-            st.rerun()
-    with c_nav2:
-        if st.button("➕ Nuevo", use_container_width=True):
-            st.session_state['seccion_activa'] = "Registrar"
-            st.rerun()
-    with c_nav3:
-        if st.button("💬 Ideas", use_container_width=True):
-            st.session_state['seccion_activa'] = "Sugerencias"
-            st.rerun()
-    with c_nav4:
-        if st.button("⚙️ Perfil", use_container_width=True):
-            st.session_state['seccion_activa'] = "Perfil"
-            st.rerun()
-    with c_nav5:
-        if st.button("🚪 Salir", use_container_width=True):
-            for key in st.session_state.keys(): del st.session_state[key]
-            st.rerun()
-
-# ==========================================
-# CONTROL
-# ==========================================
-if not st.session_state['logueado']: mostrar_login()
-else:
-    if st.session_state['datos_completos']: mostrar_app()
-    else: mostrar_registro_inicial()
