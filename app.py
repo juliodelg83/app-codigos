@@ -78,9 +78,6 @@ def intentar_autologin():
     if movil_guardado and not st.session_state['logueado']:
         if not movil_guardado.isdigit() or len(movil_guardado) != 10: return False
         
-        # Si intenta entrar con el número de Admin por URL, permitimos solo si coincide exacto
-        # (La seguridad aquí es que solo tú tendrías ese link guardado)
-        
         if hoja_usuarios:
             try:
                 usuarios_db = hoja_usuarios.get_all_records()
@@ -117,11 +114,9 @@ def mostrar_acceso():
     if st.session_state['vista_admin_login']:
         st.title("👮 Acceso Administrador")
         with st.form("form_admin"):
-            tel_admin = st.text_input("🔑 Número de Admin:", type="password") # Oculto visualmente por si acaso
+            tel_admin = st.text_input("🔑 Número de Admin:", type="password") 
             if st.form_submit_button("Entrar como Admin", use_container_width=True):
                 if tel_admin == ADMIN_TELEFONO:
-                    # Login directo Admin
-                    # Buscamos tus datos reales en la hoja para llenar el perfil
                     fila_admin = 2
                     nombre_admin = "Admin"
                     apellido_admin = "General"
@@ -161,53 +156,48 @@ def mostrar_acceso():
             entrar = st.form_submit_button("Ingresar a la App", use_container_width=True)
             
             if entrar:
-                # 1. BLOQUEO DE ADMIN EN FORMULARIO NORMAL
+                # 1. BLOQUEO DE ADMIN (Sin detener la app completa, solo el login)
                 if tel == ADMIN_TELEFONO:
                     st.error("⛔ Número reservado. Usa el acceso de Admin abajo.")
-                    st.stop()
-
-                # 2. VALIDACIONES
-                if not tel.isdigit() or len(tel) != 10:
-                    st.error("⚠️ El teléfono debe tener 10 números.")
-                    st.stop()
-                if not nom or not ape:
-                    st.error("⚠️ Nombre y Apellido obligatorios.")
-                    st.stop()
                 
-                # 3. PROCESO DE INGRESO
-                if hoja_usuarios:
-                    try:
-                        usuarios_db = hoja_usuarios.get_all_records()
-                        encontrado = False
-                        
-                        for i, u in enumerate(usuarios_db):
-                            db_tel = str(u.get('Telefono', '')).strip()
-                            if db_tel == tel:
-                                encontrado = True
-                                db_estado = str(u.get('Estado', '')).strip().lower()
-                                if db_estado == "desactivado":
-                                    st.error("⛔ Acceso denegado.")
-                                    st.stop()
-                                
-                                # Login
-                                fila = i + 2
-                                # Actualizar nombre si cambió
-                                if str(u.get('Nombre','')) != nom:
-                                    hoja_usuarios.update_cell(fila, 3, nom)
-                                    hoja_usuarios.update_cell(fila, 4, ape)
-                                
-                                iniciar_sesion(tel, nom, ape, str(u.get('Correo','')), fila)
-                                break
-                        
-                        if not encontrado:
-                            hoja_usuarios.append_row([tel, "N/A", nom, ape, "", "Activo"])
-                            enviar_telegram(f"🆕 <b>NUEVO USUARIO</b>\n👤 {nom} {ape}\n📱 {tel}")
-                            iniciar_sesion(tel, nom, ape, "", len(usuarios_db) + 2)
+                # 2. VALIDACIONES RESTO
+                elif not tel.isdigit() or len(tel) != 10:
+                    st.error("⚠️ El teléfono debe tener 10 números.")
+                elif not nom or not ape:
+                    st.error("⚠️ Nombre y Apellido obligatorios.")
+                
+                # 3. PROCESO DE INGRESO (Solo si no es admin y datos ok)
+                else:
+                    if hoja_usuarios:
+                        try:
+                            usuarios_db = hoja_usuarios.get_all_records()
+                            encontrado = False
                             
-                    except Exception as e: st.error(f"Error: {e}")
+                            for i, u in enumerate(usuarios_db):
+                                db_tel = str(u.get('Telefono', '')).strip()
+                                if db_tel == tel:
+                                    encontrado = True
+                                    db_estado = str(u.get('Estado', '')).strip().lower()
+                                    if db_estado == "desactivado":
+                                        st.error("⛔ Acceso denegado.")
+                                    else:
+                                        # Login exitoso
+                                        fila = i + 2
+                                        if str(u.get('Nombre','')) != nom:
+                                            hoja_usuarios.update_cell(fila, 3, nom)
+                                            hoja_usuarios.update_cell(fila, 4, ape)
+                                        iniciar_sesion(tel, nom, ape, str(u.get('Correo','')), fila)
+                                    break
+                            
+                            if not encontrado:
+                                hoja_usuarios.append_row([tel, "N/A", nom, ape, "", "Activo"])
+                                enviar_telegram(f"🆕 <b>NUEVO USUARIO</b>\n👤 {nom} {ape}\n📱 {tel}")
+                                iniciar_sesion(tel, nom, ape, "", len(usuarios_db) + 2)
+                                
+                        except Exception as e: st.error(f"Error: {e}")
 
+        # --- BOTÓN ADMIN (Ahora siempre visible aunque haya error arriba) ---
         st.markdown("---")
-        # BOTÓN DISCRETO PARA ADMIN
         if st.button("👮 Acceso Admin", type="secondary", use_container_width=True):
             st.session_state['vista_admin_login'] = True
             st.rerun()
