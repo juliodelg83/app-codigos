@@ -43,6 +43,9 @@ if 'memoria_direccion' not in st.session_state: st.session_state['memoria_direcc
 if 'vista_admin_login' not in st.session_state: st.session_state['vista_admin_login'] = False
 
 # --- UTILS ---
+def encriptar(password):
+    return hashlib.sha256(str(password).encode()).hexdigest()
+
 def get_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -69,7 +72,7 @@ def conectar_sheet():
 hoja, hoja_reportes, hoja_usuarios = conectar_sheet()
 
 # ==========================================
-# ⚙️ AUTO-LOGIN
+# ⚙️ AUTO-LOGIN (SOLO USUARIOS NORMALES)
 # ==========================================
 def intentar_autologin():
     query_params = st.query_params
@@ -78,6 +81,10 @@ def intentar_autologin():
     if movil_guardado and not st.session_state['logueado']:
         if not movil_guardado.isdigit() or len(movil_guardado) != 10: return False
         
+        # SI ES ADMIN, NO HACEMOS AUTO-LOGIN (Seguridad Extra)
+        if movil_guardado == ADMIN_TELEFONO:
+            return False
+
         if hoja_usuarios:
             try:
                 usuarios_db = hoja_usuarios.get_all_records()
@@ -96,7 +103,7 @@ def intentar_autologin():
                         st.session_state['user_correo'] = str(u.get('Correo', '')).strip()
                         st.session_state['usuario_nombre_completo'] = f"{st.session_state['user_nombre']} {st.session_state['user_apellido']}"
                         st.session_state['datos_completos'] = True
-                        st.toast(f"Hola de nuevo {st.session_state['user_nombre']}")
+                        st.toast(f"Hola {st.session_state['user_nombre']}")
                         return True
             except: pass
     return False
@@ -110,38 +117,53 @@ if not st.session_state['logueado']:
 def mostrar_acceso():
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # --- PANTALLA EXCLUSIVA ADMIN ---
+    # --- 👮 PANTALLA EXCLUSIVA ADMIN (CON PASSWORD) ---
     if st.session_state['vista_admin_login']:
         st.title("👮 Acceso Administrador")
+        st.caption("Área restringida.")
+        
         with st.form("form_admin"):
-            tel_admin = st.text_input("🔑 Número de Admin:", type="password") 
+            tel_admin = st.text_input("usuario:", placeholder="Número de teléfono") 
+            pass_admin = st.text_input("Contraseña:", type="password")
+            
             if st.form_submit_button("Entrar como Admin", use_container_width=True):
+                # 1. Validar que sea el número correcto
                 if tel_admin == ADMIN_TELEFONO:
-                    fila_admin = 2
-                    nombre_admin = "Admin"
-                    apellido_admin = "General"
-                    
                     if hoja_usuarios:
                         try:
                             usuarios_db = hoja_usuarios.get_all_records()
+                            encontrado_admin = False
+                            
+                            # 2. Buscar al Admin en la BD y validar contraseña
                             for i, u in enumerate(usuarios_db):
-                                if str(u.get('Telefono','')).strip() == ADMIN_TELEFONO:
-                                    fila_admin = i + 2
-                                    nombre_admin = str(u.get('Nombre',''))
-                                    apellido_admin = str(u.get('Apellido',''))
-                                    break
-                        except: pass
-
-                    iniciar_sesion(ADMIN_TELEFONO, nombre_admin, apellido_admin, "", fila_admin)
+                                db_tel = str(u.get('Telefono', '')).strip()
+                                
+                                if db_tel == ADMIN_TELEFONO:
+                                    db_pass = str(u.get('Password', '')).strip()
+                                    
+                                    # Verificamos hash o texto plano por si acaso
+                                    if db_pass == encriptar(pass_admin) or db_pass == pass_admin:
+                                        fila_admin = i + 2
+                                        nombre_admin = str(u.get('Nombre','Admin'))
+                                        apellido_admin = str(u.get('Apellido',''))
+                                        
+                                        iniciar_sesion(ADMIN_TELEFONO, nombre_admin, apellido_admin, "", fila_admin)
+                                        encontrado_admin = True
+                                        break
+                            
+                            if not encontrado_admin:
+                                st.error("❌ El usuario Admin no está configurado en la base de datos o la contraseña es incorrecta.")
+                        except Exception as e:
+                            st.error(f"Error de conexión: {e}")
                 else:
-                    st.error("⛔ Número no autorizado.")
+                    st.error("⛔ Este número no tiene permisos de Administrador.")
         
         st.write("")
         if st.button("⬅️ Volver a Usuario", use_container_width=True):
             st.session_state['vista_admin_login'] = False
             st.rerun()
 
-    # --- PANTALLA USUARIO NORMAL ---
+    # --- 📍 PANTALLA USUARIO NORMAL (SIN PASSWORD) ---
     else:
         st.title("📍 Bienvenido")
         st.write("Ingresa tus datos para acceder.")
@@ -156,9 +178,9 @@ def mostrar_acceso():
             entrar = st.form_submit_button("Ingresar a la App", use_container_width=True)
             
             if entrar:
-                # 1. BLOQUEO DE ADMIN (Sin detener la app completa, solo el login)
+                # 1. BLOQUEO DE ADMIN (Sin detener la app completa)
                 if tel == ADMIN_TELEFONO:
-                    st.error("⛔ Número reservado. Usa el acceso de Admin abajo.")
+                    st.error("⛔ Número reservado.")
                 
                 # 2. VALIDACIONES RESTO
                 elif not tel.isdigit() or len(tel) != 10:
@@ -166,7 +188,7 @@ def mostrar_acceso():
                 elif not nom or not ape:
                     st.error("⚠️ Nombre y Apellido obligatorios.")
                 
-                # 3. PROCESO DE INGRESO (Solo si no es admin y datos ok)
+                # 3. PROCESO DE INGRESO
                 else:
                     if hoja_usuarios:
                         try:
@@ -190,13 +212,14 @@ def mostrar_acceso():
                                     break
                             
                             if not encontrado:
+                                # Registro automático "Activo"
                                 hoja_usuarios.append_row([tel, "N/A", nom, ape, "", "Activo"])
                                 enviar_telegram(f"🆕 <b>NUEVO USUARIO</b>\n👤 {nom} {ape}\n📱 {tel}")
                                 iniciar_sesion(tel, nom, ape, "", len(usuarios_db) + 2)
                                 
                         except Exception as e: st.error(f"Error: {e}")
 
-        # --- BOTÓN ADMIN (Ahora siempre visible aunque haya error arriba) ---
+        # --- BOTÓN ADMIN ---
         st.markdown("---")
         if st.button("👮 Acceso Admin", type="secondary", use_container_width=True):
             st.session_state['vista_admin_login'] = True
@@ -211,7 +234,11 @@ def iniciar_sesion(tel, nombre, apellido, correo, fila):
     st.session_state['user_correo'] = correo
     st.session_state['usuario_nombre_completo'] = f"{nombre} {apellido}"
     st.session_state['datos_completos'] = True
-    st.query_params["movil"] = tel
+    
+    # Solo guardamos autologin si NO es admin
+    if tel != ADMIN_TELEFONO:
+        st.query_params["movil"] = tel
+        
     st.success(f"¡Hola {nombre}!")
     time.sleep(0.5)
     st.rerun()
