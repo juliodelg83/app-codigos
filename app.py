@@ -21,9 +21,14 @@ hide_st_style = """
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
 # --- VARIABLES DE SESIÓN ---
+# Inicializamos variables para guardar los datos individuales
 if 'logueado' not in st.session_state: st.session_state['logueado'] = False
 if 'usuario_telefono' not in st.session_state: st.session_state['usuario_telefono'] = ""
-if 'usuario_nombre' not in st.session_state: st.session_state['usuario_nombre'] = ""
+if 'usuario_nombre_completo' not in st.session_state: st.session_state['usuario_nombre_completo'] = ""
+# Variables específicas para editar perfil
+if 'user_nombre' not in st.session_state: st.session_state['user_nombre'] = ""
+if 'user_apellido' not in st.session_state: st.session_state['user_apellido'] = ""
+if 'user_correo' not in st.session_state: st.session_state['user_correo'] = ""
 if 'datos_completos' not in st.session_state: st.session_state['datos_completos'] = False
 
 # Variable para controlar el menú de navegación
@@ -67,7 +72,7 @@ def conectar_sheet():
 hoja, hoja_reportes, hoja_usuarios = conectar_sheet()
 
 # ==========================================
-# 1. LOGIN
+# 1. LOGIN (Ahora guarda datos individuales)
 # ==========================================
 def mostrar_login():
     c1, c2, c3 = st.columns([1,2,1])
@@ -96,12 +101,18 @@ def mostrar_login():
                                 st.session_state['usuario_telefono'] = db_tel
                                 st.session_state['fila_usuario'] = fila_excel 
                                 
+                                # Guardamos datos individuales para el perfil
                                 nombre_db = str(u.get('Nombre', '')).strip()
                                 apellido_db = str(u.get('Apellido', '')).strip()
+                                correo_db = str(u.get('Correo', '')).strip()
+                                
+                                st.session_state['user_nombre'] = nombre_db
+                                st.session_state['user_apellido'] = apellido_db
+                                st.session_state['user_correo'] = correo_db
                                 
                                 if nombre_db:
                                     st.session_state['datos_completos'] = True
-                                    st.session_state['usuario_nombre'] = f"{nombre_db} {apellido_db}"
+                                    st.session_state['usuario_nombre_completo'] = f"{nombre_db} {apellido_db}"
                                 else:
                                     st.session_state['datos_completos'] = False
                                 
@@ -138,7 +149,11 @@ def mostrar_registro_inicial():
                     hoja_usuarios.update_cell(f, 5, nuevo_correo)
                     
                     st.session_state['datos_completos'] = True
-                    st.session_state['usuario_nombre'] = f"{nuevo_nombre} {nuevo_apellido}"
+                    st.session_state['usuario_nombre_completo'] = f"{nuevo_nombre} {nuevo_apellido}"
+                    st.session_state['user_nombre'] = nuevo_nombre
+                    st.session_state['user_apellido'] = nuevo_apellido
+                    st.session_state['user_correo'] = nuevo_correo
+                    
                     st.rerun()
                 except: st.error("Error guardando.")
             else: st.error("Verifica los datos.")
@@ -151,7 +166,7 @@ def mostrar_app():
     # --- BARRA LATERAL (BOTONES) ---
     with st.sidebar:
         st.markdown("# 👤") 
-        st.write(f"Hola, **{st.session_state['usuario_nombre']}**")
+        st.write(f"Hola, **{st.session_state['usuario_nombre_completo']}**")
         st.caption(f"📱 {st.session_state['usuario_telefono']}")
         st.markdown("---")
         
@@ -221,9 +236,9 @@ def mostrar_app():
                                 nc = st.text_input("Nuevo código:")
                                 nt = st.text_input("Nota:")
                                 if st.form_submit_button("Enviar"):
-                                    quien = f"{st.session_state['usuario_nombre']} ({st.session_state['usuario_telefono']})"
+                                    quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
                                     hoja_reportes.append_row([item.get('Direccion'), item.get('Ciudad'), item.get('Codigo'), nc, nt, quien])
-                                    enviar_telegram(f"🚨 <b>REPORTE</b>\n👤 {st.session_state['usuario_nombre']}\n📍 {item.get('Direccion')}\n🔑 {nc}")
+                                    enviar_telegram(f"🚨 <b>REPORTE</b>\n👤 {st.session_state['usuario_nombre_completo']}\n📍 {item.get('Direccion')}\n🔑 {nc}")
                                     st.success("Listo.")
                     st.divider()
         else:
@@ -245,9 +260,9 @@ def mostrar_app():
             
             if st.form_submit_button("Guardar Dirección", use_container_width=True):
                 if nueva_dir and cod and ciu and est:
-                    quien = f"{st.session_state['usuario_nombre']} ({st.session_state['usuario_telefono']})"
+                    quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
                     hoja.append_row([nueva_dir, ciu, est, cod, quien])
-                    enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {st.session_state['usuario_nombre']}\n📍 {nueva_dir}\n🔑 {cod}")
+                    enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {st.session_state['usuario_nombre_completo']}\n📍 {nueva_dir}\n🔑 {cod}")
                     st.success("¡Guardada exitosamente!")
                 else:
                     st.error("Por favor completa todos los campos.")
@@ -263,13 +278,13 @@ def mostrar_app():
             msg = st.text_area("Escribe tu mensaje o idea aquí:")
             if st.form_submit_button("Enviar Sugerencia", use_container_width=True):
                 if msg:
-                    enviar_telegram(f"💡 <b>SUGERENCIA</b>\n👤 {st.session_state['usuario_nombre']}\n📱 {st.session_state['usuario_telefono']}\n💬 {msg}")
+                    enviar_telegram(f"💡 <b>SUGERENCIA</b>\n👤 {st.session_state['usuario_nombre_completo']}\n📱 {st.session_state['usuario_telefono']}\n💬 {msg}")
                     st.success("¡Mensaje enviado! Gracias.")
                 else:
                     st.error("El mensaje no puede estar vacío.")
 
     # ----------------------------------------------------
-    # PANTALLA 4: MI PERFIL
+    # PANTALLA 4: MI PERFIL (PRE-CARGADO)
     # ----------------------------------------------------
     elif opcion == "⚙️ Mi Perfil":
         st.title("⚙️ Configuración de Perfil")
@@ -279,12 +294,16 @@ def mostrar_app():
         
         # --- PESTAÑA 1: MODIFICAR DATOS ---
         with tab1:
-            st.write("Actualiza tu información personal.")
+            st.write("Corrige o actualiza tu información.")
             with st.form("form_datos"):
                 c1, c2 = st.columns(2)
-                with c1: up_nombre = st.text_input("Nuevo Nombre:")
-                with c2: up_apellido = st.text_input("Nuevo Apellido:")
-                up_correo = st.text_input("Nuevo Correo:")
+                # AQUÍ ESTÁ EL CAMBIO: Usamos 'value=' para precargar los datos
+                with c1: 
+                    up_nombre = st.text_input("Nombre:", value=st.session_state['user_nombre'])
+                with c2: 
+                    up_apellido = st.text_input("Apellido:", value=st.session_state['user_apellido'])
+                
+                up_correo = st.text_input("Correo Electrónico:", value=st.session_state['user_correo'])
                 
                 if st.form_submit_button("Actualizar Datos"):
                     if up_nombre and up_apellido and up_correo:
@@ -299,13 +318,18 @@ def mostrar_app():
                                     break
                             
                             if fila_encontrada > 0:
-                                # Actualizamos Datos
+                                # Actualizamos Datos en Excel
                                 hoja_usuarios.update_cell(fila_encontrada, 3, up_nombre)
                                 hoja_usuarios.update_cell(fila_encontrada, 4, up_apellido)
                                 hoja_usuarios.update_cell(fila_encontrada, 5, up_correo)
                                 
-                                st.session_state['usuario_nombre'] = f"{up_nombre} {up_apellido}"
-                                st.success("¡Información actualizada! Verás los cambios reflejados ahora.")
+                                # Actualizamos Sesión en la App
+                                st.session_state['usuario_nombre_completo'] = f"{up_nombre} {up_apellido}"
+                                st.session_state['user_nombre'] = up_nombre
+                                st.session_state['user_apellido'] = up_apellido
+                                st.session_state['user_correo'] = up_correo
+                                
+                                st.success("¡Información actualizada! Recargando...")
                                 time.sleep(1)
                                 st.rerun()
                             else:
@@ -346,7 +370,7 @@ def mostrar_app():
                         st.error("Las contraseñas nuevas no coinciden.")
 
     # Footer invisible
-    st.markdown("<div style='text-align: center; color: grey;'><small>v5.7.1</small></div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; color: grey;'><small>v5.7.2</small></div>", unsafe_allow_html=True)
 
 # ==========================================
 # CONTROL
