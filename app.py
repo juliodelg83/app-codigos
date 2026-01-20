@@ -47,6 +47,7 @@ hide_st_style = """
                 margin-bottom: 10px;
                 box-shadow: 0 2px 5px rgba(0,0,0,0.2);
                 transition: background-color 0.3s;
+                white-space: nowrap; /* Evita que el texto se rompa */
             }
             .telegram-btn:hover {
                 background-color: #0088cc;
@@ -172,9 +173,8 @@ def mostrar_acceso():
             st.session_state['vista_admin_login'] = False
             st.rerun()
 
-    # --- 🗺️ PANTALLA DE BIENVENIDA (VERSIÓN EMOJI) ---
+    # --- 🗺️ PANTALLA DE BIENVENIDA ---
     else:
-        # ✅ Título con emoji
         st.title("🗺️ Bienvenido")
         st.write("Ingresa tus datos para acceder:")
         
@@ -247,15 +247,16 @@ def iniciar_sesion(tel, nombre, apellido, correo, fila):
 def mostrar_app():
     es_admin = (st.session_state['usuario_telefono'] == ADMIN_TELEFONO)
     
-    # Header con botón pequeño
-    c_head_1, c_head_2 = st.columns([3, 1])
+    # ✅ Header con más espacio para el texto "App en Telegram"
+    c_head_1, c_head_2 = st.columns([1.8, 1.2]) 
     with c_head_1:
         st.markdown(f"### 👋 Hola, {st.session_state['user_nombre']}")
         if es_admin: st.caption("🛡️ Modo Admin")
     with c_head_2:
+        # ✅ BOTÓN SUPERIOR ACTUALIZADO
         st.markdown(f'''
-            <a href="{LINK_TELEGRAM}" target="_blank" class="telegram-btn" style="padding: 5px 10px; font-size: 0.8rem; margin: 0;">
-                📱 Bot
+            <a href="{LINK_TELEGRAM}" target="_blank" class="telegram-btn" style="padding: 6px 10px; font-size: 0.8rem; margin: 0;">
+                ✈️ App en Telegram
             </a>
         ''', unsafe_allow_html=True)
 
