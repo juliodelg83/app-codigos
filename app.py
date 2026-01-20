@@ -8,7 +8,9 @@ import requests
 import hashlib 
 from datetime import datetime
 
-# --- 👑 CONFIGURACIÓN DE ADMINISTRADOR ---
+# ==========================================
+# 👑 CONFIGURACIÓN DE ADMINISTRADOR
+# ==========================================
 ADMIN_TELEFONO = "2142595696"
 
 # Configuración de página
@@ -49,7 +51,7 @@ def encriptar(password):
 def get_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# --- 🆕 FUNCIÓN PARA FORMATO (Igual que en el Bot) ---
+# Función para poner Mayúsculas (Proper Case)
 def capitalizar_palabras(texto):
     if not texto: return ""
     return ' '.join(word.capitalize() for word in texto.lower().split())
@@ -203,7 +205,7 @@ def mostrar_acceso():
                                     break
                             
                             if not encontrado:
-                                # Registro automático "Activo" con origen Web
+                                # Registro automático "Activo" con Origen Web
                                 hoja_usuarios.append_row([tel, "N/A", nom, ape, "", "Activo", "Web"])
                                 enviar_telegram(f"🆕 <b>NUEVO USUARIO (Web)</b>\n👤 {nom} {ape}\n📱 {tel}")
                                 iniciar_sesion(tel, nom, ape, "", len(usuarios_db) + 2)
@@ -233,7 +235,7 @@ def iniciar_sesion(tel, nombre, apellido, correo, fila):
     st.rerun()
 
 # ==========================================
-# 2. APP PRINCIPAL
+# 2. APP PRINCIPAL (CORREGIDA)
 # ==========================================
 def mostrar_app():
     es_admin = (st.session_state['usuario_telefono'] == ADMIN_TELEFONO)
@@ -246,51 +248,60 @@ def mostrar_app():
 
     # --- BUSCADOR ---
     if seccion == "Buscador":
-        if not hoja: st.stop()
-        try: registros = hoja.get_all_records()
-        except: st.stop()
-        
         st.subheader("🔍 Buscar Dirección")
-        busqueda = st.text_input("Escribe la dirección:", placeholder="Ej: 1234 Main St", key="search_box")
         
-        if busqueda:
-            busqueda_lower = busqueda.lower().strip()
-            # Buscamos coincidencias
-            coincidencias = [r for r in registros if busqueda_lower in str(r.get('Direccion','')).lower()]
+        # Intentamos cargar datos SIN detener la app si falla
+        registros = []
+        error_carga = False
+        
+        if not hoja:
+            st.error("❌ Error: No hay conexión con la Hoja 1.")
+            error_carga = True
+        else:
+            try:
+                registros = hoja.get_all_records()
+            except Exception as e:
+                st.error(f"⚠️ Error leyendo datos: {e}")
+                error_carga = True
+
+        if not error_carga:
+            busqueda = st.text_input("Escribe la dirección:", placeholder="Ej: 1234 Main St", key="search_box")
             
-            if coincidencias:
-                st.success(f"✅ {len(coincidencias)} resultado(s):")
-                for item in coincidencias:
-                    idx = next((i for i, r in enumerate(registros) if r == item), 0)
-                    with st.container(border=True):
-                        st.markdown(f"📍 **{item.get('Direccion')}**")
-                        st.write(f"🏙 {item.get('Ciudad')}, {item.get('Estado')}")
-                        st.markdown(f"## 🔑 {item.get('Codigo')}")
-                        
-                        # --- 🆕 Mostrar Origen ---
-                        origen = item.get('Origen', 'Desconocido')
-                        if origen == 'Telegram': st.caption("📱 Registrado desde Telegram")
-                        elif origen == 'Web': st.caption("🌐 Registrado desde Web")
-                        else: st.caption(f"ℹ️ Fuente: {origen}")
-                        
-                        with st.expander("Reportar Error"):
-                            with st.form(f"rep_{idx}"):
-                                nc = st.text_input("Nuevo código:")
-                                nt = st.text_input("Nota:")
-                                if st.form_submit_button("Reportar"):
-                                    quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
-                                    hoja_reportes.append_row([item.get('Direccion'), item.get('Ciudad'), item.get('Codigo'), nc, nt, quien, get_time(), "Web"])
-                                    enviar_telegram(f"🚨 <b>REPORTE (Web)</b>\n👤 {quien}\n📍 {item.get('Direccion')}\n🔑 {nc}")
-                                    st.success("Enviado")
-            else:
-                st.warning("⚠️ No encontrada.")
-            
-            # Botón inteligente de registro si no existe o si quiere agregar otra
-            st.markdown("---")
-            if st.button(f"➕ Registrar '{busqueda}'", use_container_width=True):
-                st.session_state['memoria_direccion'] = busqueda
-                st.session_state['seccion_activa'] = "Registrar"
-                st.rerun()
+            if busqueda:
+                busqueda_lower = busqueda.lower().strip()
+                coincidencias = [r for r in registros if busqueda_lower in str(r.get('Direccion','')).lower()]
+                
+                if coincidencias:
+                    st.success(f"✅ {len(coincidencias)} resultado(s):")
+                    for item in coincidencias:
+                        idx = next((i for i, r in enumerate(registros) if r == item), 0)
+                        with st.container(border=True):
+                            st.markdown(f"📍 **{item.get('Direccion')}**")
+                            st.write(f"🏙 {item.get('Ciudad')}, {item.get('Estado')}")
+                            st.markdown(f"## 🔑 {item.get('Codigo')}")
+                            
+                            origen = item.get('Origen', 'Desconocido')
+                            if origen == 'Telegram': st.caption("📱 Registrado desde Telegram")
+                            elif origen == 'Web': st.caption("🌐 Registrado desde Web")
+                            else: st.caption(f"ℹ️ Fuente: {origen}")
+                            
+                            with st.expander("Reportar Error"):
+                                with st.form(f"rep_{idx}"):
+                                    nc = st.text_input("Nuevo código:")
+                                    nt = st.text_input("Nota:")
+                                    if st.form_submit_button("Reportar"):
+                                        quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
+                                        hoja_reportes.append_row([item.get('Direccion'), item.get('Ciudad'), item.get('Codigo'), nc, nt, quien, get_time(), "Web"])
+                                        enviar_telegram(f"🚨 <b>REPORTE (Web)</b>\n👤 {quien}\n📍 {item.get('Direccion')}\n🔑 {nc}")
+                                        st.success("Enviado")
+                else:
+                    st.warning("⚠️ No encontrada.")
+                
+                st.markdown("---")
+                if st.button(f"➕ Registrar '{busqueda}'", use_container_width=True):
+                    st.session_state['memoria_direccion'] = busqueda
+                    st.session_state['seccion_activa'] = "Registrar"
+                    st.rerun()
 
     # --- REGISTRAR ---
     elif seccion == "Registrar":
@@ -306,22 +317,22 @@ def mostrar_app():
             
             if st.form_submit_button("Guardar", use_container_width=True):
                 if nd and co:
-                    # --- 🆕 APLICAR FORMATO AUTOMÁTICO ---
                     nd_fmt = capitalizar_palabras(nd)
                     ci_fmt = capitalizar_palabras(ci)
-                    es_fmt = es.upper() # Estado siempre mayúsculas
+                    es_fmt = es.upper()
                     
                     quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
                     
-                    # --- 🆕 AGREGAR COLUMNA "Web" AL FINAL ---
-                    hoja.append_row([nd_fmt, ci_fmt, es_fmt, co, quien, get_time(), "Web"])
-                    
-                    enviar_telegram(f"🆕 <b>NUEVO (Web)</b>\n👤 {quien}\n📍 {nd_fmt}\n🔑 {co}")
-                    st.session_state['memoria_direccion'] = ""
-                    st.success(f"✅ Guardado como: {nd_fmt}")
-                    time.sleep(1.5)
-                    st.session_state['seccion_activa'] = "Buscador"
-                    st.rerun()
+                    try:
+                        hoja.append_row([nd_fmt, ci_fmt, es_fmt, co, quien, get_time(), "Web"])
+                        enviar_telegram(f"🆕 <b>NUEVO (Web)</b>\n👤 {quien}\n📍 {nd_fmt}\n🔑 {co}")
+                        st.session_state['memoria_direccion'] = ""
+                        st.success(f"✅ Guardado como: {nd_fmt}")
+                        time.sleep(1.5)
+                        st.session_state['seccion_activa'] = "Buscador"
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error guardando: {e}")
                 else: st.error("Faltan datos obligatorios")
 
     # --- SUGERENCIAS ---
@@ -331,8 +342,10 @@ def mostrar_app():
             txt = st.text_area("Mensaje:")
             if st.form_submit_button("Enviar", use_container_width=True):
                 if txt:
-                    enviar_telegram(f"💡 <b>IDEA (Web)</b>\n👤 {st.session_state['usuario_nombre_completo']}\n💬 {txt}")
-                    st.success("Enviado")
+                    try:
+                        enviar_telegram(f"💡 <b>IDEA (Web)</b>\n👤 {st.session_state['usuario_nombre_completo']}\n💬 {txt}")
+                        st.success("Enviado")
+                    except Exception as e: st.error(f"Error: {e}")
 
     # --- PERFIL ---
     elif seccion == "Perfil":
@@ -342,56 +355,61 @@ def mostrar_app():
             un = st.text_input("Nombre:", value=st.session_state['user_nombre'])
             ua = st.text_input("Apellido:", value=st.session_state['user_apellido'])
             if st.form_submit_button("Actualizar Datos"):
-                usuarios_db = hoja_usuarios.get_all_records()
-                for i, u in enumerate(usuarios_db):
-                    if str(u.get('Telefono', '')).strip() == st.session_state['usuario_telefono']:
-                        hoja_usuarios.update_cell(i+2, 3, un)
-                        hoja_usuarios.update_cell(i+2, 4, ua)
-                        st.session_state['user_nombre'] = un
-                        st.session_state['user_apellido'] = ua
-                        st.success("Actualizado"); time.sleep(1); st.rerun()
+                try:
+                    usuarios_db = hoja_usuarios.get_all_records()
+                    for i, u in enumerate(usuarios_db):
+                        if str(u.get('Telefono', '')).strip() == st.session_state['usuario_telefono']:
+                            hoja_usuarios.update_cell(i+2, 3, un)
+                            hoja_usuarios.update_cell(i+2, 4, ua)
+                            st.session_state['user_nombre'] = un
+                            st.session_state['user_apellido'] = ua
+                            st.success("Actualizado"); time.sleep(1); st.rerun()
+                except Exception as e: st.error(f"Error: {e}")
 
     # --- ADMIN ---
     elif seccion == "Admin" and es_admin:
         st.subheader("👮 Panel Admin")
-        if not hoja_usuarios: st.stop()
-        try:
-            todos_usuarios = hoja_usuarios.get_all_records()
-            tab_act, tab_bloq, tab_todos = st.tabs(["✅ Activos", "⛔ Bloqueados", "👥 Todos"])
-            
-            with tab_act:
-                activos = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'activo']
-                st.metric("Usuarios Activos", len(activos))
-                for a in activos:
-                    # Buscamos índice correcto sumando 2 (header + 0-index)
-                    idx = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == a['Telefono']), -1) + 2
-                    with st.expander(f"🟢 {a.get('Nombre')} {a.get('Apellido')}"):
-                        st.caption(f"📱 {a.get('Telefono')} | 🌐 {a.get('Origen', 'N/A')}")
-                        if st.button("Bloquear Acceso", key=f"d_{a['Telefono']}"):
-                            hoja_usuarios.update_cell(idx, 6, "Desactivado")
-                            st.toast(f"{a.get('Nombre')} bloqueado.")
-                            time.sleep(1)
-                            st.rerun()
-            with tab_bloq:
-                bloq = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'desactivado']
-                if not bloq: st.info("No hay usuarios bloqueados.")
-                for b in bloq:
-                    idx = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == b['Telefono']), -1) + 2
-                    with st.container(border=True):
-                        st.write(f"🔴 {b.get('Nombre')} {b.get('Apellido')}")
-                        st.caption(f"📱 {b.get('Telefono')}")
-                        if st.button("Desbloquear", key=f"re_{b['Telefono']}"):
-                            hoja_usuarios.update_cell(idx, 6, "Activo")
-                            st.toast(f"{b.get('Nombre')} activado.")
-                            time.sleep(1)
-                            st.rerun()
-            with tab_todos:
-                # Ocultamos password por seguridad visual
-                visibles = [{k: v for k, v in u.items() if k != 'Password'} for u in todos_usuarios]
-                st.dataframe(visibles)
-        except Exception as e: st.error(f"Error: {e}")
+        
+        # Verificamos conexión de usuarios sin detener la app si falla
+        if not hoja_usuarios:
+            st.error("No hay conexión con la hoja de Usuarios.")
+        else:
+            try:
+                todos_usuarios = hoja_usuarios.get_all_records()
+                tab_act, tab_bloq, tab_todos = st.tabs(["✅ Activos", "⛔ Bloqueados", "👥 Todos"])
+                
+                with tab_act:
+                    activos = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'activo']
+                    st.metric("Usuarios Activos", len(activos))
+                    for a in activos:
+                        idx = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == a['Telefono']), -1) + 2
+                        with st.expander(f"🟢 {a.get('Nombre')} {a.get('Apellido')}"):
+                            st.caption(f"📱 {a.get('Telefono')} | 🌐 {a.get('Origen', 'N/A')}")
+                            if st.button("Bloquear Acceso", key=f"d_{a['Telefono']}"):
+                                hoja_usuarios.update_cell(idx, 6, "Desactivado")
+                                st.toast(f"{a.get('Nombre')} bloqueado.")
+                                time.sleep(1)
+                                st.rerun()
+                with tab_bloq:
+                    bloq = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'desactivado']
+                    if not bloq: st.info("No hay usuarios bloqueados.")
+                    for b in bloq:
+                        idx = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == b['Telefono']), -1) + 2
+                        with st.container(border=True):
+                            st.write(f"🔴 {b.get('Nombre')} {b.get('Apellido')}")
+                            st.caption(f"📱 {b.get('Telefono')}")
+                            if st.button("Desbloquear", key=f"re_{b['Telefono']}"):
+                                hoja_usuarios.update_cell(idx, 6, "Activo")
+                                st.toast(f"{b.get('Nombre')} activado.")
+                                time.sleep(1)
+                                st.rerun()
+                with tab_todos:
+                    visibles = [{k: v for k, v in u.items() if k != 'Password'} for u in todos_usuarios]
+                    st.dataframe(visibles)
+            except Exception as e:
+                st.error(f"Error cargando usuarios: {e}")
 
-    # --- MENU INFERIOR ---
+    # --- MENU INFERIOR (SIEMPRE VISIBLE) ---
     st.markdown("---")
     st.markdown("<br>", unsafe_allow_html=True)
     cols = st.columns(5) if es_admin else st.columns(4)
