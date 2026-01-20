@@ -91,7 +91,7 @@ if busqueda:
                         nuevo_code_user = st.text_input("¿Cuál es el código correcto?", placeholder="Nuevo código")
                         comentario_user = st.text_input("Comentarios:", placeholder="Detalles extra...")
                         
-                        # CAMPO NUEVO PARA IDENTIFICARSE
+                        # CAMPO IDENTIFICACIÓN
                         usuario_reporta = st.text_input("👤 Tu Teléfono o Nombre:", placeholder="Para saber quién reporta")
 
                         btn_reportar = st.form_submit_button("Registrar Reporte y Enviar 📩")
@@ -132,7 +132,7 @@ if busqueda:
             
             nuevo_cod = st.text_input("Código de acceso:", placeholder="#1234")
             
-            # CAMPO NUEVO PARA IDENTIFICARSE
+            # CAMPO IDENTIFICACIÓN
             usuario_registra = st.text_input("👤 Tu Teléfono o Nombre:", placeholder="¿Quién registra?")
             
             enviado = st.form_submit_button("Guardar", use_container_width=True)
@@ -141,7 +141,6 @@ if busqueda:
                 if nuevo_cod and nueva_ciudad and nuevo_estado and usuario_registra:
                     try:
                         with st.spinner("Guardando..."):
-                            # Guardamos incluyendo el usuario al final
                             hoja.append_row([busqueda, nueva_ciudad, nuevo_estado, nuevo_cod, usuario_registra])
                             
                             mensaje_aviso = f"🆕 <b>NUEVO REGISTRO</b>\n👤 Por: {usuario_registra}\n📍 {busqueda}\n🏙 {nueva_ciudad}, {nuevo_estado}\n🔑 Código: {nuevo_cod}"
@@ -153,14 +152,33 @@ if busqueda:
                     except Exception as e:
                         st.error(f"Error al guardar: {e}")
                 else:
-                    st.error("⚠️ Completa todos los campos (incluyendo tu nombre/teléfono).")
+                    st.error("⚠️ Completa todos los campos.")
+
+# --- SECCIÓN DE SUGERENCIAS (NUEVO) ---
+st.markdown("---")
+with st.expander("💬 Enviar Comentario o Sugerencia"):
+    with st.form("form_sugerencia"):
+        st.write("¿Tienes alguna idea para mejorar la app o quieres decir algo?")
+        texto_sugerencia = st.text_area("Escribe tu mensaje:", placeholder="Ej: Sería bueno agregar...")
+        quien_sugiere = st.text_input("Tu Nombre (Opcional):", placeholder="Para saber quién eres")
+        
+        enviar_sug = st.form_submit_button("Enviar Mensaje ✈️", use_container_width=True)
+        
+        if enviar_sug:
+            if texto_sugerencia:
+                nombre_final = quien_sugiere if quien_sugiere else "Anónimo"
+                mensaje_telegram = f"💡 <b>NUEVA SUGERENCIA</b>\n👤 De: {nombre_final}\n💬 Mensaje: {texto_sugerencia}"
+                enviar_telegram(mensaje_telegram)
+                st.success("¡Mensaje enviado! Gracias por tu opinión.")
+            else:
+                st.error("Por favor escribe un mensaje.")
 
 # --- FOOTER ---
 st.markdown("---") 
 st.markdown(
     """
     <div style='text-align: center; color: grey;'>
-        <small>Creado por <b>Julio Delgado</b> | v3.2</small>
+        <small>Creado por <b>Julio Delgado</b> | v3.3</small>
     </div>
     """, 
     unsafe_allow_html=True
