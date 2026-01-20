@@ -55,7 +55,6 @@ def encriptar(password):
 def get_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# ✅ FUNCIÓN NUEVA: Formato Mayúsculas (Proper Case)
 def capitalizar_palabras(texto):
     if not texto: return ""
     return ' '.join(word.capitalize() for word in texto.lower().split())
@@ -91,7 +90,6 @@ def intentar_autologin():
 
     if movil_guardado and not st.session_state['logueado']:
         if not movil_guardado.isdigit() or len(movil_guardado) != 10: return False
-        
         if movil_guardado == ADMIN_TELEFONO: return False
 
         if hoja_usuarios:
@@ -121,7 +119,7 @@ if not st.session_state['logueado']:
     intentar_autologin()
 
 # ==========================================
-# 1. PANTALLAS DE ACCESO (WEB O TELEGRAM)
+# 1. PANTALLAS DE ACCESO (MODIFICADA)
 # ==========================================
 def mostrar_acceso():
     st.markdown("<br>", unsafe_allow_html=True)
@@ -154,57 +152,54 @@ def mostrar_acceso():
             st.session_state['vista_admin_login'] = False
             st.rerun()
 
-    # --- 📍 PANTALLA DE BIENVENIDA ---
+    # --- 📍 PANTALLA DE BIENVENIDA (SIN PESTAÑAS) ---
     else:
         st.title("📍 Bienvenido")
+        st.write("Ingresa tus datos para acceder:")
         
-        # ✅ Pestañas nuevas: Web vs Telegram
-        tab_web, tab_tele = st.tabs(["🖥️ Usar Web", "📱 Usar Telegram"])
-        
-        with tab_web:
-            st.write("Ingresa tus datos para acceder:")
-            with st.form("form_acceso"):
-                tel = st.text_input("📱 Teléfono (10 dígitos):", max_chars=10)
-                c1, c2 = st.columns(2)
-                with c1: nom = st.text_input("👤 Nombre:")
-                with c2: ape = st.text_input("👤 Apellido:")
-                
-                entrar = st.form_submit_button("Ingresar", use_container_width=True)
-                
-                if entrar:
-                    if tel == ADMIN_TELEFONO: st.error("⛔ Número reservado.")
-                    elif not tel.isdigit() or len(tel) != 10: st.error("⚠️ Teléfono inválido.")
-                    elif not nom or not ape: st.error("⚠️ Faltan datos.")
-                    else:
-                        if hoja_usuarios:
-                            try:
-                                usuarios_db = hoja_usuarios.get_all_records()
-                                encontrado = False
-                                for i, u in enumerate(usuarios_db):
-                                    if str(u.get('Telefono', '')).strip() == tel:
-                                        encontrado = True
-                                        if str(u.get('Estado', '')).strip().lower() == "desactivado":
-                                            st.error("⛔ Acceso denegado.")
-                                        else:
-                                            fila = i + 2
-                                            if str(u.get('Nombre','')) != nom:
-                                                hoja_usuarios.update_cell(fila, 3, nom)
-                                                hoja_usuarios.update_cell(fila, 4, ape)
-                                            iniciar_sesion(tel, nom, ape, str(u.get('Correo','')), fila)
-                                        break
-                                
-                                if not encontrado:
-                                    # ✅ Agregamos "Web" como origen
-                                    hoja_usuarios.append_row([tel, "N/A", nom, ape, "", "Activo", "Web"])
-                                    enviar_telegram(f"🆕 <b>NUEVO (Web)</b>\n👤 {nom} {ape}\n📱 {tel}")
-                                    iniciar_sesion(tel, nom, ape, "", len(usuarios_db) + 2)
-                            except Exception as e: st.error(f"Error: {e}")
+        # 1. FORMULARIO WEB DIRECTO
+        with st.form("form_acceso"):
+            tel = st.text_input("📱 Teléfono (10 dígitos):", max_chars=10)
+            c1, c2 = st.columns(2)
+            with c1: nom = st.text_input("👤 Nombre:")
+            with c2: ape = st.text_input("👤 Apellido:")
+            
+            entrar = st.form_submit_button("Ingresar", use_container_width=True)
+            
+            if entrar:
+                if tel == ADMIN_TELEFONO: st.error("⛔ Número reservado.")
+                elif not tel.isdigit() or len(tel) != 10: st.error("⚠️ Teléfono inválido.")
+                elif not nom or not ape: st.error("⚠️ Faltan datos.")
+                else:
+                    if hoja_usuarios:
+                        try:
+                            usuarios_db = hoja_usuarios.get_all_records()
+                            encontrado = False
+                            for i, u in enumerate(usuarios_db):
+                                if str(u.get('Telefono', '')).strip() == tel:
+                                    encontrado = True
+                                    if str(u.get('Estado', '')).strip().lower() == "desactivado":
+                                        st.error("⛔ Acceso denegado.")
+                                    else:
+                                        fila = i + 2
+                                        if str(u.get('Nombre','')) != nom:
+                                            hoja_usuarios.update_cell(fila, 3, nom)
+                                            hoja_usuarios.update_cell(fila, 4, ape)
+                                        iniciar_sesion(tel, nom, ape, str(u.get('Correo','')), fila)
+                                    break
+                            
+                            if not encontrado:
+                                hoja_usuarios.append_row([tel, "N/A", nom, ape, "", "Activo", "Web"])
+                                enviar_telegram(f"🆕 <b>NUEVO (Web)</b>\n👤 {nom} {ape}\n📱 {tel}")
+                                iniciar_sesion(tel, nom, ape, "", len(usuarios_db) + 2)
+                        except Exception as e: st.error(f"Error: {e}")
 
-        with tab_tele:
-            st.info("💡 ¿Prefieres usar la app desde Telegram?")
-            st.link_button("🤖 Abrir @BuscadordecodigosBot", LINK_TELEGRAM, use_container_width=True)
-
+        # 2. BOTÓN DE TELEGRAM (FUERA DEL FORMULARIO)
+        st.write("")
         st.markdown("---")
+        st.link_button("✈️ Usar App en Telegram", LINK_TELEGRAM, use_container_width=True)
+
+        st.write("")
         if st.button("👮 Acceso Admin", type="secondary", use_container_width=True):
             st.session_state['vista_admin_login'] = True
             st.rerun()
@@ -229,7 +224,7 @@ def iniciar_sesion(tel, nombre, apellido, correo, fila):
 def mostrar_app():
     es_admin = (st.session_state['usuario_telefono'] == ADMIN_TELEFONO)
     
-    # ✅ Header con acceso rápido al Bot
+    # Header
     c_head_1, c_head_2 = st.columns([3, 1])
     with c_head_1:
         st.markdown(f"### 👋 Hola, {st.session_state['user_nombre']}")
@@ -246,7 +241,6 @@ def mostrar_app():
         registros = []
         error_carga = False
         
-        # ✅ Protección contra caída si falla la hoja
         if not hoja:
             st.error("❌ Sin conexión.")
             error_carga = True
@@ -268,7 +262,6 @@ def mostrar_app():
                             st.write(f"🏙 {item.get('Ciudad')}, {item.get('Estado')}")
                             st.markdown(f"## 🔑 {item.get('Codigo')}")
                             
-                            # ✅ Mostrar origen
                             origen = item.get('Origen', 'Desconocido')
                             if origen == 'Telegram': st.caption("📱 Telegram")
                             elif origen == 'Web': st.caption("🌐 Web")
@@ -304,13 +297,11 @@ def mostrar_app():
             co = st.text_input("Código:")
             if st.form_submit_button("Guardar", use_container_width=True):
                 if nd and co:
-                    # ✅ Aplicar formato automático
                     nd_fmt = capitalizar_palabras(nd)
                     ci_fmt = capitalizar_palabras(ci)
                     es_fmt = es.upper()
                     quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
                     try:
-                        # ✅ Guardar con etiqueta Web
                         hoja.append_row([nd_fmt, ci_fmt, es_fmt, co, quien, get_time(), "Web"])
                         enviar_telegram(f"🆕 <b>NUEVO (Web)</b>\n👤 {quien}\n📍 {nd_fmt}\n🔑 {co}")
                         st.session_state['memoria_direccion'] = ""
