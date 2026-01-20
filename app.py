@@ -8,14 +8,22 @@ import requests
 import hashlib 
 
 # Configuración de página
-st.set_page_config(page_title="Acceso Seguro", layout="wide")
+st.set_page_config(page_title="App Direcciones", layout="centered")
 
-# --- 🎨 CSS CORREGIDO (PARA MÓVIL) ---
-# Quitamos la línea que ocultaba el 'header' para que aparezca la flecha del menú en celulares
+# --- 🎨 CSS: ESTILO MÓVIL ---
+# Ocultamos el menú superior y el footer para que parezca una App nativa
 hide_st_style = """
             <style>
-            #MainMenu {visibility: hidden;} 
+            #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
+            header {visibility: hidden;}
+            
+            /* Ajuste para que los botones de abajo se vean mejor */
+            div.stButton > button {
+                width: 100%;
+                border-radius: 10px;
+                height: 3em;
+            }
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
@@ -24,14 +32,14 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 if 'logueado' not in st.session_state: st.session_state['logueado'] = False
 if 'usuario_telefono' not in st.session_state: st.session_state['usuario_telefono'] = ""
 if 'usuario_nombre_completo' not in st.session_state: st.session_state['usuario_nombre_completo'] = ""
-# Variables para perfil
+# Datos perfil
 if 'user_nombre' not in st.session_state: st.session_state['user_nombre'] = ""
 if 'user_apellido' not in st.session_state: st.session_state['user_apellido'] = ""
 if 'user_correo' not in st.session_state: st.session_state['user_correo'] = ""
 if 'datos_completos' not in st.session_state: st.session_state['datos_completos'] = False
 
-# Variable para menú
-if 'seccion_activa' not in st.session_state: st.session_state['seccion_activa'] = "🔍 Buscador"
+# Control de navegación (Por defecto: Buscador)
+if 'seccion_activa' not in st.session_state: st.session_state['seccion_activa'] = "Buscador"
 
 # --- ENCRIPTACIÓN ---
 def encriptar(password):
@@ -74,72 +82,71 @@ hoja, hoja_reportes, hoja_usuarios = conectar_sheet()
 # 1. LOGIN
 # ==========================================
 def mostrar_login():
-    c1, c2, c3 = st.columns([1,2,1])
-    with c2:
-        st.title("🔒 Ingreso Usuarios")
-        with st.form("login_form"):
-            tel_input = st.text_input("📱 Número de Teléfono")
-            pass_input = st.text_input("🔑 Contraseña", type="password")
-            entrar = st.form_submit_button("Ingresar", use_container_width=True)
-            
-            if entrar:
-                if hoja_usuarios:
-                    try:
-                        usuarios_db = hoja_usuarios.get_all_records()
-                        encontrado = False
-                        for i, u in enumerate(usuarios_db):
-                            fila_excel = i + 2
-                            db_tel = str(u.get('Telefono', '')).strip()
-                            db_pass = str(u.get('Password', '')).strip()
+    st.markdown("<br><br>", unsafe_allow_html=True) # Espacio arriba
+    st.title("🔒 Ingreso")
+    
+    with st.form("login_form"):
+        tel_input = st.text_input("📱 Teléfono")
+        pass_input = st.text_input("🔑 Contraseña", type="password")
+        entrar = st.form_submit_button("Entrar", use_container_width=True)
+        
+        if entrar:
+            if hoja_usuarios:
+                try:
+                    usuarios_db = hoja_usuarios.get_all_records()
+                    encontrado = False
+                    for i, u in enumerate(usuarios_db):
+                        fila_excel = i + 2
+                        db_tel = str(u.get('Telefono', '')).strip()
+                        db_pass = str(u.get('Password', '')).strip()
+                        
+                        es_temporal = (db_pass == pass_input.strip())
+                        es_encriptada = (db_pass == encriptar(pass_input.strip()))
+                        
+                        if db_tel == tel_input.strip() and (es_temporal or es_encriptada):
+                            st.session_state['logueado'] = True
+                            st.session_state['usuario_telefono'] = db_tel
+                            st.session_state['fila_usuario'] = fila_excel 
                             
-                            es_temporal = (db_pass == pass_input.strip())
-                            es_encriptada = (db_pass == encriptar(pass_input.strip()))
+                            # Cargar datos
+                            nombre_db = str(u.get('Nombre', '')).strip()
+                            apellido_db = str(u.get('Apellido', '')).strip()
+                            correo_db = str(u.get('Correo', '')).strip()
                             
-                            if db_tel == tel_input.strip() and (es_temporal or es_encriptada):
-                                st.session_state['logueado'] = True
-                                st.session_state['usuario_telefono'] = db_tel
-                                st.session_state['fila_usuario'] = fila_excel 
-                                
-                                # Guardar datos sesión
-                                nombre_db = str(u.get('Nombre', '')).strip()
-                                apellido_db = str(u.get('Apellido', '')).strip()
-                                correo_db = str(u.get('Correo', '')).strip()
-                                
-                                st.session_state['user_nombre'] = nombre_db
-                                st.session_state['user_apellido'] = apellido_db
-                                st.session_state['user_correo'] = correo_db
-                                
-                                if nombre_db:
-                                    st.session_state['datos_completos'] = True
-                                    st.session_state['usuario_nombre_completo'] = f"{nombre_db} {apellido_db}"
-                                else:
-                                    st.session_state['datos_completos'] = False
-                                
-                                encontrado = True
-                                st.success("Correcto")
-                                time.sleep(0.5)
-                                st.rerun()
-                                break
-                        if not encontrado: st.error("Datos incorrectos.")
-                    except Exception as e: st.error(f"Error: {e}")
+                            st.session_state['user_nombre'] = nombre_db
+                            st.session_state['user_apellido'] = apellido_db
+                            st.session_state['user_correo'] = correo_db
+                            
+                            if nombre_db:
+                                st.session_state['datos_completos'] = True
+                                st.session_state['usuario_nombre_completo'] = f"{nombre_db} {apellido_db}"
+                            else:
+                                st.session_state['datos_completos'] = False
+                            
+                            encontrado = True
+                            st.success("¡Bienvenido!")
+                            time.sleep(0.5)
+                            st.rerun()
+                            break
+                    if not encontrado: st.error("Datos incorrectos.")
+                except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
 # 2. REGISTRO INICIAL
 # ==========================================
 def mostrar_registro_inicial():
-    st.title("👋 Bienvenido")
-    st.warning("Configura tu cuenta.")
+    st.title("👋 Configurar Cuenta")
     with st.form("registro_form"):
-        col1, col2 = st.columns(2)
-        with col1: nuevo_nombre = st.text_input("Nombre:")
-        with col2: nuevo_apellido = st.text_input("Apellido:")
+        c1, c2 = st.columns(2)
+        with c1: nuevo_nombre = st.text_input("Nombre:")
+        with c2: nuevo_apellido = st.text_input("Apellido:")
         nuevo_correo = st.text_input("Correo:")
         st.markdown("---")
-        nueva_clave = st.text_input("Nueva contraseña:", type="password")
-        confirmar_clave = st.text_input("Repite contraseña:", type="password")
+        nueva_clave = st.text_input("Contraseña Nueva:", type="password")
+        confirmar_clave = st.text_input("Repetir Contraseña:", type="password")
         
-        if st.form_submit_button("Guardar"):
-            if nuevo_nombre and nueva_clave == confirmar_clave:
+        if st.form_submit_button("Guardar Datos", use_container_width=True):
+            if nuevo_nombre and nuevo_clave == confirmar_clave:
                 try:
                     f = st.session_state['fila_usuario']
                     hoja_usuarios.update_cell(f, 2, encriptar(nueva_clave))
@@ -152,223 +159,168 @@ def mostrar_registro_inicial():
                     st.session_state['user_nombre'] = nuevo_nombre
                     st.session_state['user_apellido'] = nuevo_apellido
                     st.session_state['user_correo'] = nuevo_correo
-                    
                     st.rerun()
                 except: st.error("Error guardando.")
-            else: st.error("Verifica los datos.")
+            else: st.error("Error en los datos.")
 
 # ==========================================
-# 3. APP PRINCIPAL
+# 3. APP PRINCIPAL (DISEÑO MÓVIL)
 # ==========================================
 def mostrar_app():
     
-    # --- BARRA LATERAL (VISIBLE EN MÓVIL AHORA) ---
-    with st.sidebar:
-        st.markdown("# 👤") 
-        st.write(f"Hola, **{st.session_state['usuario_nombre_completo']}**")
-        st.caption(f"📱 {st.session_state['usuario_telefono']}")
-        st.markdown("---")
-        
-        # BOTONES DE NAVEGACIÓN
-        if st.button("🔍 Buscador", use_container_width=True):
-            st.session_state['seccion_activa'] = "🔍 Buscador"
-            
-        if st.button("➕ Registrar Nueva", use_container_width=True):
-            st.session_state['seccion_activa'] = "➕ Registrar Nueva"
-            
-        if st.button("💬 Sugerencias", use_container_width=True):
-            st.session_state['seccion_activa'] = "💬 Sugerencias"
-            
-        if st.button("⚙️ Mi Perfil", use_container_width=True):
-            st.session_state['seccion_activa'] = "⚙️ Mi Perfil"
-        
-        st.markdown("---")
-        if st.button("Cerrar Sesión", use_container_width=True):
-            for key in st.session_state.keys(): del st.session_state[key]
-            st.rerun()
+    # --- CABECERA PRINCIPAL ---
+    # Mostramos el saludo arriba, fuera de cualquier sidebar
+    col_saludo_1, col_saludo_2 = st.columns([3, 1])
+    with col_saludo_1:
+        st.markdown(f"### 👋 Hola, {st.session_state['user_nombre']}")
+        st.caption("Bienvenido al Buscador")
+    with col_saludo_2:
+        # Botón pequeño de salir arriba a la derecha (opcional, por si acaso)
+        pass 
 
-    # Leemos la sección activa
-    opcion = st.session_state['seccion_activa']
+    st.markdown("---")
 
-    # ----------------------------------------------------
-    # PANTALLA 1: BUSCADOR
-    # ----------------------------------------------------
-    if opcion == "🔍 Buscador":
-        st.title("🔍 Buscador de Direcciones")
+    # --- CONTENIDO SEGÚN SECCIÓN ---
+    seccion = st.session_state['seccion_activa']
+
+    # 1. BUSCADOR
+    if seccion == "Buscador":
         if not hoja: st.stop()
         try: registros = hoja.get_all_records()
         except: st.stop()
-
-        lista_direcciones = []
-        if registros:
-            lista_direcciones = [str(r.get('Direccion', '')) for r in registros if r.get('Direccion')]
-
-        busqueda_seleccion = st.selectbox(
-            "Selecciona una dirección:", 
-            options=lista_direcciones, 
-            index=None, 
-            placeholder="Escribe para buscar...",
-        )
-
-        if busqueda_seleccion:
-            resultados = [r for i, r in enumerate(registros) if str(r.get('Direccion', '')) == busqueda_seleccion]
-            for i, r in enumerate(registros):
-                if str(r.get('Direccion', '')) == busqueda_seleccion: r['_id'] = i
+        
+        lista_dirs = [str(r.get('Direccion', '')) for r in registros if r.get('Direccion')]
+        
+        st.subheader("🔍 Buscar")
+        busqueda = st.selectbox("Escribe dirección:", options=lista_dirs, index=None, placeholder="Tocá aquí para buscar...")
+        
+        if busqueda:
+            res = [r for i,r in enumerate(registros) if str(r.get('Direccion','')) == busqueda]
+            for i,r in enumerate(registros):
+                if str(r.get('Direccion','')) == busqueda: r['_id'] = i
             
-            if resultados:
-                for item in resultados:
-                    st.success("✅ Dirección encontrada")
-                    with st.container():
-                        c1, c2, c3 = st.columns([3, 2, 1])
-                        with c1:
-                            st.caption("Dirección")
-                            st.write(f"**{item.get('Direccion')}**")
-                        with c2:
-                            st.caption("Ubicación")
-                            st.write(f"{item.get('Ciudad')}, {item.get('Estado')}")
-                        with c3:
-                            st.caption("Código")
-                            st.markdown(f"### {item.get('Codigo')}")
+            if res:
+                for item in res:
+                    st.success("✅ Encontrada")
+                    with st.container(border=True):
+                        st.markdown(f"📍 **{item.get('Direccion')}**")
+                        st.write(f"🏙 {item.get('Ciudad')}, {item.get('Estado')}")
+                        st.markdown(f"## 🔑 {item.get('Codigo')}")
                         
-                        with st.expander(f"Reportar fallo"):
-                            with st.form(f"rep_{item.get('_id', 0)}"):
+                        with st.expander("Reportar Error"):
+                            with st.form(f"rep_{item.get('_id')}"):
                                 nc = st.text_input("Nuevo código:")
                                 nt = st.text_input("Nota:")
-                                if st.form_submit_button("Enviar"):
+                                if st.form_submit_button("Reportar"):
                                     quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
                                     hoja_reportes.append_row([item.get('Direccion'), item.get('Ciudad'), item.get('Codigo'), nc, nt, quien])
                                     enviar_telegram(f"🚨 <b>REPORTE</b>\n👤 {st.session_state['usuario_nombre_completo']}\n📍 {item.get('Direccion')}\n🔑 {nc}")
-                                    st.success("Listo.")
-                    st.divider()
+                                    st.success("Enviado")
         else:
-            st.info("👈 Usa el menú de botones si necesitas registrar una nueva.")
+            st.info("Utiliza el botón '➕ Nuevo' abajo si la dirección no existe.")
 
-    # ----------------------------------------------------
-    # PANTALLA 2: REGISTRAR NUEVA
-    # ----------------------------------------------------
-    elif opcion == "➕ Registrar Nueva":
-        st.title("➕ Registrar Nueva Dirección")
-        st.warning("Asegúrate de que la dirección no exista ya en el Buscador.")
-        
-        with st.form("registro_direccion"):
-            nueva_dir = st.text_input("Dirección Completa:", placeholder="Ej: 123 Main St")
+    # 2. REGISTRAR
+    elif seccion == "Registrar":
+        st.subheader("➕ Nueva Dirección")
+        with st.form("reg_form"):
+            nd = st.text_input("Dirección:")
             c1, c2 = st.columns(2)
-            with c1: ciu = st.text_input("Ciudad:", placeholder="Dallas")
-            with c2: est = st.text_input("Estado:", placeholder="TX")
-            cod = st.text_input("Código de acceso:", placeholder="#1234")
+            with c1: ci = st.text_input("Ciudad:", value="Dallas")
+            with c2: es = st.text_input("Estado:", value="TX")
+            co = st.text_input("Código:")
             
-            if st.form_submit_button("Guardar Dirección", use_container_width=True):
-                if nueva_dir and cod and ciu and est:
+            if st.form_submit_button("Guardar", use_container_width=True):
+                if nd and co:
                     quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
-                    hoja.append_row([nueva_dir, ciu, est, cod, quien])
-                    enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {st.session_state['usuario_nombre_completo']}\n📍 {nueva_dir}\n🔑 {cod}")
-                    st.success("¡Guardada exitosamente!")
+                    hoja.append_row([nd, ci, es, co, quien])
+                    enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {st.session_state['usuario_nombre_completo']}\n📍 {nd}\n🔑 {co}")
+                    st.success("Guardado")
+                    time.sleep(1)
+                    st.session_state['seccion_activa'] = "Buscador" # Volver al buscador
+                    st.rerun()
                 else:
-                    st.error("Por favor completa todos los campos.")
+                    st.error("Faltan datos")
 
-    # ----------------------------------------------------
-    # PANTALLA 3: SUGERENCIAS
-    # ----------------------------------------------------
-    elif opcion == "💬 Sugerencias":
-        st.title("💬 Buzón de Sugerencias")
-        st.write("Tu opinión nos ayuda a mejorar la aplicación.")
-        
-        with st.form("form_sug"):
-            msg = st.text_area("Escribe tu mensaje o idea aquí:")
-            if st.form_submit_button("Enviar Sugerencia", use_container_width=True):
-                if msg:
-                    enviar_telegram(f"💡 <b>SUGERENCIA</b>\n👤 {st.session_state['usuario_nombre_completo']}\n📱 {st.session_state['usuario_telefono']}\n💬 {msg}")
-                    st.success("¡Mensaje enviado! Gracias.")
-                else:
-                    st.error("El mensaje no puede estar vacío.")
+    # 3. SUGERENCIAS
+    elif seccion == "Sugerencias":
+        st.subheader("💬 Sugerencias")
+        with st.form("sug_form"):
+            txt = st.text_area("Mensaje:")
+            if st.form_submit_button("Enviar", use_container_width=True):
+                if txt:
+                    enviar_telegram(f"💡 <b>SUGERENCIA</b>\n👤 {st.session_state['usuario_nombre_completo']}\n💬 {txt}")
+                    st.success("Enviado")
 
-    # ----------------------------------------------------
-    # PANTALLA 4: MI PERFIL (PRE-CARGADO)
-    # ----------------------------------------------------
-    elif opcion == "⚙️ Mi Perfil":
-        st.title("⚙️ Configuración de Perfil")
+    # 4. PERFIL
+    elif seccion == "Perfil":
+        st.subheader("⚙️ Mi Perfil")
+        tab1, tab2 = st.tabs(["Mis Datos", "Contraseña"])
         
-        # Pestañas
-        tab1, tab2 = st.tabs(["📝 Mis Datos", "🔑 Contraseña"])
-        
-        # --- PESTAÑA 1: DATOS ---
         with tab1:
-            st.write("Corrige o actualiza tu información.")
-            with st.form("form_datos"):
-                c1, c2 = st.columns(2)
-                with c1: 
-                    up_nombre = st.text_input("Nombre:", value=st.session_state['user_nombre'])
-                with c2: 
-                    up_apellido = st.text_input("Apellido:", value=st.session_state['user_apellido'])
-                
-                up_correo = st.text_input("Correo Electrónico:", value=st.session_state['user_correo'])
-                
+            with st.form("edit_perfil"):
+                un = st.text_input("Nombre:", value=st.session_state['user_nombre'])
+                ua = st.text_input("Apellido:", value=st.session_state['user_apellido'])
+                uc = st.text_input("Correo:", value=st.session_state['user_correo'])
                 if st.form_submit_button("Actualizar Datos"):
-                    if up_nombre and up_apellido and up_correo:
-                        try:
-                            # Buscar usuario
-                            usuarios_db = hoja_usuarios.get_all_records()
-                            fila_encontrada = -1
-                            
-                            for i, u in enumerate(usuarios_db):
-                                if str(u.get('Telefono', '')).strip() == st.session_state['usuario_telefono']:
-                                    fila_encontrada = i + 2
-                                    break
-                            
-                            if fila_encontrada > 0:
-                                # Actualizar DB
-                                hoja_usuarios.update_cell(fila_encontrada, 3, up_nombre)
-                                hoja_usuarios.update_cell(fila_encontrada, 4, up_apellido)
-                                hoja_usuarios.update_cell(fila_encontrada, 5, up_correo)
-                                
-                                # Actualizar Sesión
-                                st.session_state['usuario_nombre_completo'] = f"{up_nombre} {up_apellido}"
-                                st.session_state['user_nombre'] = up_nombre
-                                st.session_state['user_apellido'] = up_apellido
-                                st.session_state['user_correo'] = up_correo
-                                
-                                st.success("¡Información actualizada!")
-                                time.sleep(1)
-                                st.rerun()
-                            else:
-                                st.error("Error al encontrar usuario.")
-                        except Exception as e:
-                            st.error(f"Error de conexión: {e}")
-                    else:
-                        st.error("Completa todos los campos.")
+                    # Lógica actualización (Simplificada)
+                    usuarios_db = hoja_usuarios.get_all_records()
+                    for i, u in enumerate(usuarios_db):
+                        if str(u.get('Telefono', '')).strip() == st.session_state['usuario_telefono']:
+                            hoja_usuarios.update_cell(i+2, 3, un)
+                            hoja_usuarios.update_cell(i+2, 4, ua)
+                            hoja_usuarios.update_cell(i+2, 5, uc)
+                            st.session_state['user_nombre'] = un
+                            st.session_state['user_apellido'] = ua
+                            st.session_state['user_correo'] = uc
+                            st.session_state['usuario_nombre_completo'] = f"{un} {ua}"
+                            st.success("Actualizado")
+                            time.sleep(1)
+                            st.rerun()
 
-        # --- PESTAÑA 2: PASSWORD ---
         with tab2:
-            st.write("Cambia tu contraseña.")
-            with st.form("cambio_pass"):
-                clave_actual = st.text_input("Contraseña Actual:", type="password")
-                clave_nueva = st.text_input("Nueva Contraseña:", type="password")
-                clave_confirm = st.text_input("Confirmar Nueva:", type="password")
-                
-                if st.form_submit_button("Actualizar Contraseña"):
-                    if clave_nueva == clave_confirm:
-                        try:
-                            usuarios_db = hoja_usuarios.get_all_records()
-                            fila_encontrada = -1
-                            
-                            for i, u in enumerate(usuarios_db):
-                                if str(u.get('Telefono', '')).strip() == st.session_state['usuario_telefono']:
-                                    if str(u.get('Password', '')).strip() == encriptar(clave_actual):
-                                        fila_encontrada = i + 2
-                                        break
-                            
-                            if fila_encontrada > 0:
-                                hoja_usuarios.update_cell(fila_encontrada, 2, encriptar(clave_nueva))
-                                st.success("¡Contraseña actualizada!")
-                            else:
-                                st.error("Contraseña actual incorrecta.")
-                        except Exception as e:
-                            st.error(f"Error: {e}")
-                    else:
-                        st.error("Las contraseñas no coinciden.")
+            with st.form("edit_pass"):
+                ca = st.text_input("Actual:", type="password")
+                cn = st.text_input("Nueva:", type="password")
+                cc = st.text_input("Repetir:", type="password")
+                if st.form_submit_button("Cambiar Clave"):
+                    # Lógica clave
+                    usuarios_db = hoja_usuarios.get_all_records()
+                    for i, u in enumerate(usuarios_db):
+                        if str(u.get('Telefono', '')).strip() == st.session_state['usuario_telefono']:
+                            if str(u.get('Password','')).strip() == encriptar(ca):
+                                if cn == cc:
+                                    hoja_usuarios.update_cell(i+2, 2, encriptar(cn))
+                                    st.success("Clave cambiada")
+                                else: st.error("No coinciden")
+                            else: st.error("Clave actual mal")
 
-    # Footer
-    st.markdown("<div style='text-align: center; color: grey;'><small>v5.7.3 (Móvil Fixed)</small></div>", unsafe_allow_html=True)
+    # --- BARRA DE NAVEGACIÓN INFERIOR ---
+    st.markdown("---")
+    st.markdown("<br>", unsafe_allow_html=True) # Espacio extra
+    
+    # Creamos 5 columnas para los botones de abajo
+    c_nav1, c_nav2, c_nav3, c_nav4, c_nav5 = st.columns(5)
+    
+    with c_nav1:
+        if st.button("🔍", help="Buscador", use_container_width=True):
+            st.session_state['seccion_activa'] = "Buscador"
+            st.rerun()
+    with c_nav2:
+        if st.button("➕", help="Nuevo", use_container_width=True):
+            st.session_state['seccion_activa'] = "Registrar"
+            st.rerun()
+    with c_nav3:
+        if st.button("💬", help="Sugerencias", use_container_width=True):
+            st.session_state['seccion_activa'] = "Sugerencias"
+            st.rerun()
+    with c_nav4:
+        if st.button("⚙️", help="Perfil", use_container_width=True):
+            st.session_state['seccion_activa'] = "Perfil"
+            st.rerun()
+    with c_nav5:
+        if st.button("🚪", help="Salir", use_container_width=True):
+            for key in st.session_state.keys(): del st.session_state[key]
+            st.rerun()
 
 # ==========================================
 # CONTROL
