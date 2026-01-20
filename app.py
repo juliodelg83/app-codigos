@@ -141,7 +141,7 @@ def mostrar_login():
                             if db_tel == tel_input.strip() and (db_pass == pass_input.strip() or db_pass == encriptar(pass_input.strip())):
                                 encontrado = True
                                 
-                                # El ADMIN siempre entra, aunque no diga "Activo" (por seguridad para ti)
+                                # El ADMIN siempre entra, aunque no diga "Activo"
                                 es_admin = (db_tel == ADMIN_TELEFONO)
                                 
                                 if db_estado == "activo" or es_admin:
@@ -291,23 +291,17 @@ def mostrar_app():
         if not hoja_usuarios: st.stop()
         
         try:
-            # Obtenemos datos frescos
             todos_usuarios = hoja_usuarios.get_all_records()
-            
-            # Pestañas de filtros
             tab_pend, tab_act, tab_todos = st.tabs(["⏳ Pendientes", "✅ Activos", "👥 Todos"])
             
-            # --- PENDIENTES ---
+            # PENDIENTES
             with tab_pend:
                 pendientes = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'pendiente']
-                if not pendientes:
-                    st.info("No hay solicitudes pendientes.")
+                if not pendientes: st.info("No hay solicitudes pendientes.")
                 else:
                     for p in pendientes:
-                        # Buscamos el índice real en la lista completa para editar la fila correcta
                         idx_real = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == p['Telefono']), -1)
                         fila_sheet = idx_real + 2
-                        
                         with st.container(border=True):
                             c1, c2 = st.columns([3, 1])
                             with c1:
@@ -316,23 +310,18 @@ def mostrar_app():
                             with c2:
                                 if st.button("Aprobar", key=f"apr_{p['Telefono']}", type="primary"):
                                     hoja_usuarios.update_cell(fila_sheet, 6, "Activo")
-                                    st.toast(f"Aprobado {p.get('Nombre')}")
-                                    time.sleep(1)
-                                    st.rerun()
+                                    st.toast("Aprobado"); time.sleep(1); st.rerun()
                                 if st.button("Bloquear", key=f"rej_{p['Telefono']}"):
                                     hoja_usuarios.update_cell(fila_sheet, 6, "Desactivado")
-                                    st.toast("Usuario bloqueado")
-                                    time.sleep(1)
-                                    st.rerun()
+                                    st.toast("Bloqueado"); time.sleep(1); st.rerun()
 
-            # --- ACTIVOS ---
+            # ACTIVOS
             with tab_act:
                 activos = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'activo']
                 st.metric("Usuarios Activos", len(activos))
                 for a in activos:
                     idx_real = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == a['Telefono']), -1)
                     fila_sheet = idx_real + 2
-                    
                     with st.expander(f"🟢 {a.get('Nombre')} {a.get('Apellido')}"):
                         st.write(f"📱 {a.get('Telefono')}")
                         st.write(f"✉️ {a.get('Correo')}")
@@ -340,9 +329,11 @@ def mostrar_app():
                             hoja_usuarios.update_cell(fila_sheet, 6, "Desactivado")
                             st.rerun()
 
-            # --- TODOS ---
+            # TODOS (Sin Password)
             with tab_todos:
-                st.dataframe(todos_usuarios)
+                # Ocultamos la columna Password para la vista
+                datos_visibles = [{k: v for k, v in u.items() if k != 'Password'} for u in todos_usuarios]
+                st.dataframe(datos_visibles)
 
         except Exception as e:
             st.error(f"Error cargando usuarios: {e}")
@@ -350,10 +341,7 @@ def mostrar_app():
     # --- BARRA DE NAVEGACIÓN ---
     st.markdown("---")
     st.markdown("<br>", unsafe_allow_html=True)
-    
-    # Si es admin mostramos 5 columnas, si no, solo 4
     cols = st.columns(5) if es_admin else st.columns(4)
-    
     with cols[0]:
         if st.button("🔍 Buscar", use_container_width=True): st.session_state['seccion_activa'] = "Buscador"; st.rerun()
     with cols[1]:
@@ -362,12 +350,10 @@ def mostrar_app():
         if st.button("💬 Ideas", use_container_width=True): st.session_state['seccion_activa'] = "Sugerencias"; st.rerun()
     with cols[3]:
         if st.button("⚙️ Perfil", use_container_width=True): st.session_state['seccion_activa'] = "Perfil"; st.rerun()
-    
     if es_admin:
         with cols[4]:
             if st.button("👮 Admin", use_container_width=True): st.session_state['seccion_activa'] = "Admin"; st.rerun()
 
-    # Botón de salir (abajo del todo para no ocupar columna en móvil si no hay espacio)
     st.write("")
     if st.button("🚪 Cerrar Sesión", use_container_width=True):
         for key in st.session_state.keys(): del st.session_state[key]
@@ -377,7 +363,4 @@ def mostrar_app():
 # CONTROL
 # ==========================================
 if not st.session_state['logueado']: mostrar_login()
-else:
-    # Si falta completar datos básicos, forzamos perfil. Si no, App.
-    # (En v8 la app ya maneja datos incompletos en el perfil, pero por seguridad):
-    mostrar_app()
+else: mostrar_app()
