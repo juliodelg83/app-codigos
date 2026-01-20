@@ -10,28 +10,27 @@ import hashlib
 # Configuración de página
 st.set_page_config(page_title="Acceso Seguro", layout="wide")
 
-# --- CSS: OCULTAR MENÚ STREAMLIT ---
+# --- 🎨 CSS CORREGIDO (PARA MÓVIL) ---
+# Quitamos la línea que ocultaba el 'header' para que aparezca la flecha del menú en celulares
 hide_st_style = """
             <style>
-            #MainMenu {visibility: hidden;}
+            #MainMenu {visibility: hidden;} 
             footer {visibility: hidden;}
-            header {visibility: hidden;}
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
 # --- VARIABLES DE SESIÓN ---
-# Inicializamos variables para guardar los datos individuales
 if 'logueado' not in st.session_state: st.session_state['logueado'] = False
 if 'usuario_telefono' not in st.session_state: st.session_state['usuario_telefono'] = ""
 if 'usuario_nombre_completo' not in st.session_state: st.session_state['usuario_nombre_completo'] = ""
-# Variables específicas para editar perfil
+# Variables para perfil
 if 'user_nombre' not in st.session_state: st.session_state['user_nombre'] = ""
 if 'user_apellido' not in st.session_state: st.session_state['user_apellido'] = ""
 if 'user_correo' not in st.session_state: st.session_state['user_correo'] = ""
 if 'datos_completos' not in st.session_state: st.session_state['datos_completos'] = False
 
-# Variable para controlar el menú de navegación
+# Variable para menú
 if 'seccion_activa' not in st.session_state: st.session_state['seccion_activa'] = "🔍 Buscador"
 
 # --- ENCRIPTACIÓN ---
@@ -72,7 +71,7 @@ def conectar_sheet():
 hoja, hoja_reportes, hoja_usuarios = conectar_sheet()
 
 # ==========================================
-# 1. LOGIN (Ahora guarda datos individuales)
+# 1. LOGIN
 # ==========================================
 def mostrar_login():
     c1, c2, c3 = st.columns([1,2,1])
@@ -101,7 +100,7 @@ def mostrar_login():
                                 st.session_state['usuario_telefono'] = db_tel
                                 st.session_state['fila_usuario'] = fila_excel 
                                 
-                                # Guardamos datos individuales para el perfil
+                                # Guardar datos sesión
                                 nombre_db = str(u.get('Nombre', '')).strip()
                                 apellido_db = str(u.get('Apellido', '')).strip()
                                 correo_db = str(u.get('Correo', '')).strip()
@@ -163,7 +162,7 @@ def mostrar_registro_inicial():
 # ==========================================
 def mostrar_app():
     
-    # --- BARRA LATERAL (BOTONES) ---
+    # --- BARRA LATERAL (VISIBLE EN MÓVIL AHORA) ---
     with st.sidebar:
         st.markdown("# 👤") 
         st.write(f"Hola, **{st.session_state['usuario_nombre_completo']}**")
@@ -292,12 +291,11 @@ def mostrar_app():
         # Pestañas
         tab1, tab2 = st.tabs(["📝 Mis Datos", "🔑 Contraseña"])
         
-        # --- PESTAÑA 1: MODIFICAR DATOS ---
+        # --- PESTAÑA 1: DATOS ---
         with tab1:
             st.write("Corrige o actualiza tu información.")
             with st.form("form_datos"):
                 c1, c2 = st.columns(2)
-                # AQUÍ ESTÁ EL CAMBIO: Usamos 'value=' para precargar los datos
                 with c1: 
                     up_nombre = st.text_input("Nombre:", value=st.session_state['user_nombre'])
                 with c2: 
@@ -308,7 +306,7 @@ def mostrar_app():
                 if st.form_submit_button("Actualizar Datos"):
                     if up_nombre and up_apellido and up_correo:
                         try:
-                            # Buscar usuario por teléfono
+                            # Buscar usuario
                             usuarios_db = hoja_usuarios.get_all_records()
                             fila_encontrada = -1
                             
@@ -318,30 +316,30 @@ def mostrar_app():
                                     break
                             
                             if fila_encontrada > 0:
-                                # Actualizamos Datos en Excel
+                                # Actualizar DB
                                 hoja_usuarios.update_cell(fila_encontrada, 3, up_nombre)
                                 hoja_usuarios.update_cell(fila_encontrada, 4, up_apellido)
                                 hoja_usuarios.update_cell(fila_encontrada, 5, up_correo)
                                 
-                                # Actualizamos Sesión en la App
+                                # Actualizar Sesión
                                 st.session_state['usuario_nombre_completo'] = f"{up_nombre} {up_apellido}"
                                 st.session_state['user_nombre'] = up_nombre
                                 st.session_state['user_apellido'] = up_apellido
                                 st.session_state['user_correo'] = up_correo
                                 
-                                st.success("¡Información actualizada! Recargando...")
+                                st.success("¡Información actualizada!")
                                 time.sleep(1)
                                 st.rerun()
                             else:
-                                st.error("Error al encontrar tu usuario.")
+                                st.error("Error al encontrar usuario.")
                         except Exception as e:
                             st.error(f"Error de conexión: {e}")
                     else:
-                        st.error("Por favor completa todos los campos.")
+                        st.error("Completa todos los campos.")
 
-        # --- PESTAÑA 2: CAMBIAR CLAVE ---
+        # --- PESTAÑA 2: PASSWORD ---
         with tab2:
-            st.write("Cambia tu contraseña de acceso.")
+            st.write("Cambia tu contraseña.")
             with st.form("cambio_pass"):
                 clave_actual = st.text_input("Contraseña Actual:", type="password")
                 clave_nueva = st.text_input("Nueva Contraseña:", type="password")
@@ -361,16 +359,16 @@ def mostrar_app():
                             
                             if fila_encontrada > 0:
                                 hoja_usuarios.update_cell(fila_encontrada, 2, encriptar(clave_nueva))
-                                st.success("¡Contraseña actualizada con éxito!")
+                                st.success("¡Contraseña actualizada!")
                             else:
-                                st.error("La contraseña actual es incorrecta.")
+                                st.error("Contraseña actual incorrecta.")
                         except Exception as e:
                             st.error(f"Error: {e}")
                     else:
-                        st.error("Las contraseñas nuevas no coinciden.")
+                        st.error("Las contraseñas no coinciden.")
 
-    # Footer invisible
-    st.markdown("<div style='text-align: center; color: grey;'><small>v5.7.2</small></div>", unsafe_allow_html=True)
+    # Footer
+    st.markdown("<div style='text-align: center; color: grey;'><small>v5.7.3 (Móvil Fixed)</small></div>", unsafe_allow_html=True)
 
 # ==========================================
 # CONTROL
