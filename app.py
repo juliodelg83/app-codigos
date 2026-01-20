@@ -129,10 +129,9 @@ def mostrar_registro_inicial():
             else: st.error("Verifica los datos.")
 
 # ==========================================
-# 3. APP PRINCIPAL (UNIFICADA)
+# 3. APP PRINCIPAL (HÍBRIDA)
 # ==========================================
 def mostrar_app():
-    # Sidebar
     with st.sidebar:
         st.write(f"👤 **{st.session_state['usuario_nombre']}**")
         if st.button("Salir"):
@@ -145,23 +144,31 @@ def mostrar_app():
     try: registros = hoja.get_all_records()
     except: st.stop()
 
-    # --- BARRA ÚNICA ---
-    busqueda = st.text_input("Escribe la dirección:", placeholder="Ej: 17811 Vail St")
+    # --- LISTA PARA AUTOCOMPLETAR ---
+    # Creamos la lista de opciones para el buscador
+    lista_direcciones = []
+    if registros:
+        lista_direcciones = [str(r.get('Direccion', '')) for r in registros if r.get('Direccion')]
 
-    if busqueda:
-        texto_buscar = busqueda.strip().lower()
-        resultados = []
-        
-        # 1. BUSCAMOS SI EXISTE
-        for i, fila in enumerate(registros):
-            fila['_id'] = i 
-            if texto_buscar in str(fila.get('Direccion', '')).strip().lower():
-                resultados.append(fila)
-        
-        # 2. DECIDIMOS QUÉ MOSTRAR
+    # 1. BUSCADOR CON AUTOCOMPLETADO
+    busqueda_seleccion = st.selectbox(
+        "🔍 Buscar dirección:", 
+        options=lista_direcciones, 
+        index=None, 
+        placeholder="Escribe para buscar...",
+    )
+
+    # 2. LÓGICA
+    if busqueda_seleccion:
+        # --- CASO A: SI ENCONTRÓ ALGO ---
+        resultados = [r for i, r in enumerate(registros) if str(r.get('Direccion', '')) == busqueda_seleccion]
+        # (Asignamos ID manual para el reporte)
+        for i, r in enumerate(registros):
+            if str(r.get('Direccion', '')) == busqueda_seleccion:
+                r['_id'] = i
+                
         if resultados:
-            # --- CASO A: YA EXISTE (Mostrar Datos) ---
-            st.success(f"✅ Dirección encontrada:")
+            st.success("✅ Dirección encontrada:")
             for item in resultados:
                 with st.container():
                     c1, c2, c3 = st.columns([3, 2, 1])
@@ -176,7 +183,7 @@ def mostrar_app():
                         st.markdown(f"### {item.get('Codigo')}")
                     
                     with st.expander(f"Reportar"):
-                        with st.form(f"rep_{item['_id']}"):
+                        with st.form(f"rep_{item.get('_id', 0)}"):
                             nc = st.text_input("Nuevo código:")
                             nt = st.text_input("Nota:")
                             if st.form_submit_button("Enviar"):
@@ -186,30 +193,32 @@ def mostrar_app():
                                 st.success("Listo.")
                 st.divider()
 
-        else:
-            # --- CASO B: NO EXISTE (Mostrar Formulario de Registro) ---
-            st.warning(f"⚠️ La dirección '{busqueda}' no existe.")
-            st.info("Completa los datos abajo para guardarla ahora mismo:")
+    else:
+        # --- CASO B: NO SELECCIONÓ NADA (REGISTRO) ---
+        st.info("👆 Usa el buscador de arriba. Si no aparece, regístrala aquí abajo:")
+        
+        with st.form("auto_registro"):
+            st.write(f"📍 **Registrar Nueva Dirección**")
             
-            with st.form("auto_registro"):
-                # Pre-llenamos la dirección con lo que escribió arriba
-                st.write(f"📍 Registrando: **{busqueda}**")
-                
-                c1, c2 = st.columns(2)
-                with c1: ciu = st.text_input("Ciudad:", placeholder="Dallas")
-                with c2: est = st.text_input("Estado:", placeholder="TX")
-                cod = st.text_input("Código de acceso:", placeholder="#1234")
-                
-                if st.form_submit_button("Guardar Dirección", use_container_width=True):
-                    if cod and ciu and est:
+            nueva_dir = st.text_input("Dirección Completa:")
+            c1, c2 = st.columns(2)
+            with c1: ciu = st.text_input("Ciudad:", placeholder="Dallas")
+            with c2: est = st.text_input("Estado:", placeholder="TX")
+            cod = st.text_input("Código de acceso:", placeholder="#1234")
+            
+            if st.form_submit_button("Guardar Nueva", use_container_width=True):
+                if nueva_dir and cod and ciu and est:
+                    if nueva_dir in lista_direcciones:
+                        st.error("⚠️ Esa dirección YA existe, búscala arriba.")
+                    else:
                         quien = f"{st.session_state['usuario_nombre']} ({st.session_state['usuario_telefono']})"
-                        hoja.append_row([busqueda, ciu, est, cod, quien])
-                        enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {st.session_state['usuario_nombre']}\n📍 {busqueda}\n🔑 {cod}")
+                        hoja.append_row([nueva_dir, ciu, est, cod, quien])
+                        enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {st.session_state['usuario_nombre']}\n📍 {nueva_dir}\n🔑 {cod}")
                         st.success("¡Guardada!")
                         time.sleep(1)
                         st.rerun()
-                    else:
-                        st.error("Faltan datos (Ciudad, Estado o Código).")
+                else:
+                    st.error("Faltan datos.")
 
     # Footer
     st.markdown("---")
@@ -220,8 +229,7 @@ def mostrar_app():
                 enviar_telegram(f"💡 <b>SUGERENCIA</b>\n👤 {st.session_state['usuario_nombre']}\n💬 {msg}")
                 st.success("Enviado.")
 
-    # --- FIRMA LIMPIA ---
-    st.markdown("<div style='text-align: center; color: grey;'><small>v5.4</small></div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; color: grey;'><small>v5.5</small></div>", unsafe_allow_html=True)
 
 # ==========================================
 # CONTROL
