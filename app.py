@@ -91,30 +91,36 @@ if busqueda:
                         nuevo_code_user = st.text_input("¿Cuál es el código correcto?", placeholder="Nuevo código")
                         comentario_user = st.text_input("Comentarios:", placeholder="Detalles extra...")
                         
-                        # CAMPO IDENTIFICACIÓN (Reportes)
-                        usuario_reporta = st.text_input("👤 Tu Teléfono o Nombre:", placeholder="Para saber quién reporta")
+                        st.markdown("**Tus Datos:**")
+                        col_rep_1, col_rep_2 = st.columns(2)
+                        with col_rep_1:
+                            rep_nombre = st.text_input("Nombre:", key=f"rep_nom_{item['_id']}")
+                        with col_rep_2:
+                            rep_tel = st.text_input("Teléfono:", key=f"rep_tel_{item['_id']}")
 
                         btn_reportar = st.form_submit_button("Registrar Reporte y Enviar 📩")
                         
                         if btn_reportar:
-                            if usuario_reporta:
+                            if rep_nombre and rep_tel:
+                                usuario_completo = f"{rep_nombre} - {rep_tel}"
+                                
                                 if hoja_reportes:
                                     try:
                                         hoja_reportes.append_row([
                                             item.get('Direccion'), item.get('Ciudad'),
-                                            item.get('Codigo'), nuevo_code_user, comentario_user, usuario_reporta
+                                            item.get('Codigo'), nuevo_code_user, comentario_user, usuario_completo
                                         ])
                                         st.success("✅ Reporte guardado.")
-                                        enviar_telegram(f"🚨 <b>REPORTE DE ERROR</b>\n👤 Por: {usuario_reporta}\n📍 {item.get('Direccion')}\n🔑 Viejo: {item.get('Codigo')} -> Nuevo: {nuevo_code_user}\n💬 Nota: {comentario_user}")
+                                        enviar_telegram(f"🚨 <b>REPORTE DE ERROR</b>\n📍 {item.get('Direccion')}\n🔑 Viejo: {item.get('Codigo')} -> Nuevo: {nuevo_code_user}\n💬 Nota: {comentario_user}\n👤 <b>Reporta:</b> {rep_nombre}\n📱 <b>Tel:</b> {rep_tel}")
                                     except:
                                         pass
                                 
                                 asunto = f"Correccion: {item.get('Direccion')}"
-                                cuerpo = f"El código {item.get('Codigo')} NO funciona.\nNuevo: {nuevo_code_user}\nNota: {comentario_user}\nReportado por: {usuario_reporta}"
+                                cuerpo = f"El código {item.get('Codigo')} NO funciona.\nNuevo: {nuevo_code_user}\nNota: {comentario_user}\nReportado por: {usuario_completo}"
                                 link = f"mailto:juliodelg@gmail.com?subject={urllib.parse.quote(asunto)}&body={urllib.parse.quote(cuerpo)}"
                                 st.markdown(f'<a href="{link}" target="_blank" style="display:inline-block;background:#d93025;color:white;padding:8px 15px;text-decoration:none;border-radius:5px;">📤 Enviar Correo</a>', unsafe_allow_html=True)
                             else:
-                                st.error("⚠️ Por favor escribe tu nombre o teléfono.")
+                                st.error("⚠️ Por favor escribe tu nombre y teléfono.")
                 st.divider()
                 
     else:
@@ -132,18 +138,24 @@ if busqueda:
             
             nuevo_cod = st.text_input("Código de acceso:", placeholder="#1234")
             
-            # CAMPO IDENTIFICACIÓN (Registro Nuevo)
-            usuario_registra = st.text_input("👤 Tu Teléfono o Nombre:", placeholder="¿Quién registra?")
+            st.markdown("**Tus Datos:**")
+            c_reg_1, c_reg_2 = st.columns(2)
+            with c_reg_1:
+                reg_nombre = st.text_input("Nombre:")
+            with c_reg_2:
+                reg_tel = st.text_input("Teléfono:")
             
             enviado = st.form_submit_button("Guardar", use_container_width=True)
             
             if enviado:
-                if nuevo_cod and nueva_ciudad and nuevo_estado and usuario_registra:
+                if nuevo_cod and nueva_ciudad and nuevo_estado and reg_nombre and reg_tel:
                     try:
                         with st.spinner("Guardando..."):
-                            hoja.append_row([busqueda, nueva_ciudad, nuevo_estado, nuevo_cod, usuario_registra])
+                            usuario_completo = f"{reg_nombre} - {reg_tel}"
+                            # Guardamos en Excel concatenado
+                            hoja.append_row([busqueda, nueva_ciudad, nuevo_estado, nuevo_cod, usuario_completo])
                             
-                            mensaje_aviso = f"🆕 <b>NUEVO REGISTRO</b>\n👤 Por: {usuario_registra}\n📍 {busqueda}\n🏙 {nueva_ciudad}, {nuevo_estado}\n🔑 Código: {nuevo_cod}"
+                            mensaje_aviso = f"🆕 <b>NUEVO REGISTRO</b>\n📍 {busqueda}\n🏙 {nueva_ciudad}, {nuevo_estado}\n🔑 Código: {nuevo_cod}\n👤 <b>Registra:</b> {reg_nombre}\n📱 <b>Tel:</b> {reg_tel}"
                             enviar_telegram(mensaje_aviso)
                             
                         st.success("¡Guardado exitosamente!")
@@ -152,7 +164,7 @@ if busqueda:
                     except Exception as e:
                         st.error(f"Error al guardar: {e}")
                 else:
-                    st.error("⚠️ Completa todos los campos (incluyendo tu nombre/teléfono).")
+                    st.error("⚠️ Completa todos los campos (incluyendo Nombre y Teléfono).")
 
 # --- SECCIÓN DE SUGERENCIAS (ACTUALIZADA) ---
 st.markdown("---")
@@ -161,25 +173,29 @@ with st.expander("💬 Enviar Comentario o Sugerencia"):
         st.write("¿Tienes alguna idea para mejorar la app o quieres decir algo?")
         texto_sugerencia = st.text_area("Escribe tu mensaje:", placeholder="Ej: Sería bueno agregar...")
         
-        # CAMPO OBLIGATORIO DE CONTACTO
-        contacto_sugiere = st.text_input("Tu Nombre y Contacto (Obligatorio):", placeholder="Ej: Julio - 555-1234")
+        st.markdown("**Tus Datos (Obligatorios):**")
+        c_sug_1, c_sug_2 = st.columns(2)
+        with c_sug_1:
+            sug_nombre = st.text_input("Nombre:")
+        with c_sug_2:
+            sug_tel = st.text_input("Teléfono:")
         
         enviar_sug = st.form_submit_button("Enviar Mensaje ✈️", use_container_width=True)
         
         if enviar_sug:
-            if texto_sugerencia and contacto_sugiere:
-                mensaje_telegram = f"💡 <b>NUEVA SUGERENCIA</b>\n👤 De: {contacto_sugiere}\n💬 Mensaje: {texto_sugerencia}"
+            if texto_sugerencia and sug_nombre and sug_tel:
+                mensaje_telegram = f"💡 <b>NUEVA SUGERENCIA</b>\n💬 <b>Mensaje:</b> {texto_sugerencia}\n👤 <b>De:</b> {sug_nombre}\n📱 <b>Tel:</b> {sug_tel}"
                 enviar_telegram(mensaje_telegram)
                 st.success("¡Mensaje enviado! Gracias por tu opinión.")
             else:
-                st.error("⚠️ Por favor escribe tu mensaje Y tu contacto para poder responderte.")
+                st.error("⚠️ Por favor completa el mensaje, tu nombre y tu teléfono.")
 
 # --- FOOTER ---
 st.markdown("---") 
 st.markdown(
     """
     <div style='text-align: center; color: grey;'>
-        <small>Creado por <b>Julio Delgado</b> | v3.4</small>
+        <small>Creado por <b>Julio Delgado</b> | v3.5</small>
     </div>
     """, 
     unsafe_allow_html=True
