@@ -39,9 +39,8 @@ if 'user_correo' not in st.session_state: st.session_state['user_correo'] = ""
 if 'datos_completos' not in st.session_state: st.session_state['datos_completos'] = False
 
 if 'seccion_activa' not in st.session_state: st.session_state['seccion_activa'] = "Buscador"
-
-# Variable nueva para pasar la dirección de una pantalla a otra
 if 'memoria_direccion' not in st.session_state: st.session_state['memoria_direccion'] = ""
+if 'vista_admin_login' not in st.session_state: st.session_state['vista_admin_login'] = False
 
 # --- UTILS ---
 def get_time():
@@ -70,7 +69,7 @@ def conectar_sheet():
 hoja, hoja_reportes, hoja_usuarios = conectar_sheet()
 
 # ==========================================
-# ⚙️ LÓGICA DE AUTO-LOGIN
+# ⚙️ AUTO-LOGIN
 # ==========================================
 def intentar_autologin():
     query_params = st.query_params
@@ -78,7 +77,10 @@ def intentar_autologin():
 
     if movil_guardado and not st.session_state['logueado']:
         if not movil_guardado.isdigit() or len(movil_guardado) != 10: return False
-
+        
+        # Si intenta entrar con el número de Admin por URL, permitimos solo si coincide exacto
+        # (La seguridad aquí es que solo tú tendrías ese link guardado)
+        
         if hoja_usuarios:
             try:
                 usuarios_db = hoja_usuarios.get_all_records()
@@ -97,7 +99,7 @@ def intentar_autologin():
                         st.session_state['user_correo'] = str(u.get('Correo', '')).strip()
                         st.session_state['usuario_nombre_completo'] = f"{st.session_state['user_nombre']} {st.session_state['user_apellido']}"
                         st.session_state['datos_completos'] = True
-                        st.toast(f"Reconexión rápida: {st.session_state['user_nombre']}")
+                        st.toast(f"Hola de nuevo {st.session_state['user_nombre']}")
                         return True
             except: pass
     return False
@@ -106,64 +108,109 @@ if not st.session_state['logueado']:
     intentar_autologin()
 
 # ==========================================
-# 1. PANTALLA ÚNICA DE ACCESO
+# 1. PANTALLAS DE ACCESO
 # ==========================================
 def mostrar_acceso():
     st.markdown("<br>", unsafe_allow_html=True)
-    st.title("📍 Bienvenido")
-    st.write("Ingresa tus datos para acceder.")
     
-    with st.form("form_acceso"):
-        st.caption("Solo números sin el +1 (Ej: 2145550000)")
-        tel = st.text_input("📱 Teléfono (10 dígitos):", max_chars=10)
+    # --- PANTALLA EXCLUSIVA ADMIN ---
+    if st.session_state['vista_admin_login']:
+        st.title("👮 Acceso Administrador")
+        with st.form("form_admin"):
+            tel_admin = st.text_input("🔑 Número de Admin:", type="password") # Oculto visualmente por si acaso
+            if st.form_submit_button("Entrar como Admin", use_container_width=True):
+                if tel_admin == ADMIN_TELEFONO:
+                    # Login directo Admin
+                    # Buscamos tus datos reales en la hoja para llenar el perfil
+                    fila_admin = 2
+                    nombre_admin = "Admin"
+                    apellido_admin = "General"
+                    
+                    if hoja_usuarios:
+                        try:
+                            usuarios_db = hoja_usuarios.get_all_records()
+                            for i, u in enumerate(usuarios_db):
+                                if str(u.get('Telefono','')).strip() == ADMIN_TELEFONO:
+                                    fila_admin = i + 2
+                                    nombre_admin = str(u.get('Nombre',''))
+                                    apellido_admin = str(u.get('Apellido',''))
+                                    break
+                        except: pass
+
+                    iniciar_sesion(ADMIN_TELEFONO, nombre_admin, apellido_admin, "", fila_admin)
+                else:
+                    st.error("⛔ Número no autorizado.")
         
-        c1, c2 = st.columns(2)
-        with c1: nom = st.text_input("👤 Nombre:")
-        with c2: ape = st.text_input("👤 Apellido:")
+        st.write("")
+        if st.button("⬅️ Volver a Usuario", use_container_width=True):
+            st.session_state['vista_admin_login'] = False
+            st.rerun()
+
+    # --- PANTALLA USUARIO NORMAL ---
+    else:
+        st.title("📍 Bienvenido")
+        st.write("Ingresa tus datos para acceder.")
         
-        entrar = st.form_submit_button("Ingresar a la App", use_container_width=True)
-        
-        if entrar:
-            if not tel.isdigit():
-                st.error("⚠️ El teléfono solo debe contener números.")
-                st.stop()
-            if len(tel) != 10:
-                st.error("⚠️ El teléfono debe tener 10 dígitos.")
-                st.stop()
-            if not nom or not ape:
-                st.error("⚠️ Nombre y Apellido son obligatorios.")
-                st.stop()
+        with st.form("form_acceso"):
+            st.caption("Solo números sin el +1")
+            tel = st.text_input("📱 Teléfono (10 dígitos):", max_chars=10)
+            c1, c2 = st.columns(2)
+            with c1: nom = st.text_input("👤 Nombre:")
+            with c2: ape = st.text_input("👤 Apellido:")
+            
+            entrar = st.form_submit_button("Ingresar a la App", use_container_width=True)
+            
+            if entrar:
+                # 1. BLOQUEO DE ADMIN EN FORMULARIO NORMAL
+                if tel == ADMIN_TELEFONO:
+                    st.error("⛔ Número reservado. Usa el acceso de Admin abajo.")
+                    st.stop()
+
+                # 2. VALIDACIONES
+                if not tel.isdigit() or len(tel) != 10:
+                    st.error("⚠️ El teléfono debe tener 10 números.")
+                    st.stop()
+                if not nom or not ape:
+                    st.error("⚠️ Nombre y Apellido obligatorios.")
+                    st.stop()
                 
-            if hoja_usuarios:
-                try:
-                    usuarios_db = hoja_usuarios.get_all_records()
-                    encontrado = False
-                    
-                    for i, u in enumerate(usuarios_db):
-                        db_tel = str(u.get('Telefono', '')).strip()
+                # 3. PROCESO DE INGRESO
+                if hoja_usuarios:
+                    try:
+                        usuarios_db = hoja_usuarios.get_all_records()
+                        encontrado = False
                         
-                        if db_tel == tel:
-                            encontrado = True
-                            db_estado = str(u.get('Estado', '')).strip().lower()
-                            
-                            if db_estado == "desactivado":
-                                st.error("⛔ Acceso denegado. Contacta al administrador.")
-                                st.stop()
-                            
-                            fila = i + 2
-                            if str(u.get('Nombre','')) != nom or str(u.get('Apellido','')) != ape:
-                                hoja_usuarios.update_cell(fila, 3, nom)
-                                hoja_usuarios.update_cell(fila, 4, ape)
-                            
-                            iniciar_sesion(tel, nom, ape, str(u.get('Correo','')), fila)
-                            break
-                    
-                    if not encontrado:
-                        hoja_usuarios.append_row([tel, "N/A", nom, ape, "", "Activo"])
-                        enviar_telegram(f"🆕 <b>NUEVO USUARIO</b>\n👤 {nom} {ape}\n📱 {tel}")
-                        iniciar_sesion(tel, nom, ape, "", len(usuarios_db) + 2)
+                        for i, u in enumerate(usuarios_db):
+                            db_tel = str(u.get('Telefono', '')).strip()
+                            if db_tel == tel:
+                                encontrado = True
+                                db_estado = str(u.get('Estado', '')).strip().lower()
+                                if db_estado == "desactivado":
+                                    st.error("⛔ Acceso denegado.")
+                                    st.stop()
+                                
+                                # Login
+                                fila = i + 2
+                                # Actualizar nombre si cambió
+                                if str(u.get('Nombre','')) != nom:
+                                    hoja_usuarios.update_cell(fila, 3, nom)
+                                    hoja_usuarios.update_cell(fila, 4, ape)
+                                
+                                iniciar_sesion(tel, nom, ape, str(u.get('Correo','')), fila)
+                                break
                         
-                except Exception as e: st.error(f"Error de conexión: {e}")
+                        if not encontrado:
+                            hoja_usuarios.append_row([tel, "N/A", nom, ape, "", "Activo"])
+                            enviar_telegram(f"🆕 <b>NUEVO USUARIO</b>\n👤 {nom} {ape}\n📱 {tel}")
+                            iniciar_sesion(tel, nom, ape, "", len(usuarios_db) + 2)
+                            
+                    except Exception as e: st.error(f"Error: {e}")
+
+        st.markdown("---")
+        # BOTÓN DISCRETO PARA ADMIN
+        if st.button("👮 Acceso Admin", type="secondary", use_container_width=True):
+            st.session_state['vista_admin_login'] = True
+            st.rerun()
 
 def iniciar_sesion(tel, nombre, apellido, correo, fila):
     st.session_state['logueado'] = True
@@ -191,33 +238,27 @@ def mostrar_app():
 
     seccion = st.session_state['seccion_activa']
 
-    # --- BUSCADOR INTELIGENTE (TEXTO) ---
+    # --- BUSCADOR ---
     if seccion == "Buscador":
         if not hoja: st.stop()
         try: registros = hoja.get_all_records()
         except: st.stop()
         
-        # Usamos Text Input para capturar lo que escriben, exista o no
         st.subheader("🔍 Buscar Dirección")
         busqueda = st.text_input("Escribe la dirección:", placeholder="Ej: 1234 Main St", key="search_box")
         
         if busqueda:
-            # 1. Buscamos coincidencias (Exactas o Parciales)
             busqueda_lower = busqueda.lower().strip()
             coincidencias = [r for r in registros if busqueda_lower in str(r.get('Direccion','')).lower()]
             
-            # A) Si encontramos algo
             if coincidencias:
-                st.success(f"✅ Se encontraron {len(coincidencias)} resultado(s):")
+                st.success(f"✅ {len(coincidencias)} resultado(s):")
                 for item in coincidencias:
-                    # Asignamos ID temporal para reporte
                     idx = next((i for i, r in enumerate(registros) if r == item), 0)
-                    
                     with st.container(border=True):
                         st.markdown(f"📍 **{item.get('Direccion')}**")
                         st.write(f"🏙 {item.get('Ciudad')}, {item.get('Estado')}")
                         st.markdown(f"## 🔑 {item.get('Codigo')}")
-                        
                         with st.expander("Reportar Error"):
                             with st.form(f"rep_{idx}"):
                                 nc = st.text_input("Nuevo código:")
@@ -227,48 +268,32 @@ def mostrar_app():
                                     hoja_reportes.append_row([item.get('Direccion'), item.get('Ciudad'), item.get('Codigo'), nc, nt, quien, get_time()])
                                     enviar_telegram(f"🚨 <b>REPORTE</b>\n👤 {quien}\n📍 {item.get('Direccion')}\n🔑 {nc}")
                                     st.success("Enviado")
-            
-            # B) Si no es lo que buscaban o no hay nada
             else:
-                st.warning("⚠️ No encontramos esa dirección.")
-
-            # BOTÓN MÁGICO: Registrar lo que escribiste
+                st.warning("⚠️ No encontrada.")
+            
             st.markdown("---")
-            st.write("¿Es una dirección nueva?")
-            if st.button(f"➕ Registrar '{busqueda}' ahora", use_container_width=True):
-                # Guardamos lo que escribió en memoria
+            if st.button(f"➕ Registrar '{busqueda}'", use_container_width=True):
                 st.session_state['memoria_direccion'] = busqueda
-                # Cambiamos de pantalla
                 st.session_state['seccion_activa'] = "Registrar"
                 st.rerun()
 
-    # --- REGISTRAR (Con Memoria) ---
+    # --- REGISTRAR ---
     elif seccion == "Registrar":
         st.subheader("➕ Nueva Dirección")
-        
-        # Recuperamos la memoria (si viene del buscador)
-        valor_inicial = st.session_state.get('memoria_direccion', "")
-        
+        val_ini = st.session_state.get('memoria_direccion', "")
         with st.form("reg_form"):
-            # Usamos value=valor_inicial para que aparezca escrito
-            nd = st.text_input("Dirección:", value=valor_inicial)
+            nd = st.text_input("Dirección:", value=val_ini)
             c1, c2 = st.columns(2)
             with c1: ci = st.text_input("Ciudad:", value="Dallas")
             with c2: es = st.text_input("Estado:", value="TX")
             co = st.text_input("Código:")
-            
             if st.form_submit_button("Guardar", use_container_width=True):
                 if nd and co:
                     quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
                     hoja.append_row([nd, ci, es, co, quien, get_time()])
                     enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {quien}\n📍 {nd}\n🔑 {co}")
-                    
-                    # Limpiamos memoria y volvemos
                     st.session_state['memoria_direccion'] = ""
-                    st.success("Guardado")
-                    time.sleep(1)
-                    st.session_state['seccion_activa'] = "Buscador"
-                    st.rerun()
+                    st.success("Guardado"); time.sleep(1); st.session_state['seccion_activa'] = "Buscador"; st.rerun()
                 else: st.error("Faltan datos")
 
     # --- SUGERENCIAS ---
@@ -316,7 +341,6 @@ def mostrar_app():
                         if st.button("Bloquear Acceso", key=f"d_{a['Telefono']}"):
                             hoja_usuarios.update_cell(idx, 6, "Desactivado")
                             st.rerun()
-            
             with tab_bloq:
                 bloq = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'desactivado']
                 if not bloq: st.info("Nadie bloqueado.")
@@ -324,10 +348,9 @@ def mostrar_app():
                     idx = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == b['Telefono']), -1) + 2
                     with st.container(border=True):
                         st.write(f"🔴 {b.get('Nombre')} {b.get('Apellido')}")
-                        if st.button("Desbloquear (Permitir)", key=f"re_{b['Telefono']}"):
+                        if st.button("Desbloquear", key=f"re_{b['Telefono']}"):
                             hoja_usuarios.update_cell(idx, 6, "Activo")
                             st.rerun()
-
             with tab_todos:
                 visibles = [{k: v for k, v in u.items() if k != 'Password'} for u in todos_usuarios]
                 st.dataframe(visibles)
@@ -340,13 +363,12 @@ def mostrar_app():
     with cols[0]:
         if st.button("🔍 Buscar", use_container_width=True): 
             st.session_state['seccion_activa'] = "Buscador"
-            # Importante: Limpiar memoria al volver manualmente al buscador
             st.session_state['memoria_direccion'] = ""
             st.rerun()
     with cols[1]:
         if st.button("➕ Nuevo", use_container_width=True): 
             st.session_state['seccion_activa'] = "Registrar"
-            st.session_state['memoria_direccion'] = "" # Limpiar si entran directo
+            st.session_state['memoria_direccion'] = ""
             st.rerun()
     with cols[2]:
         if st.button("💬 Ideas", use_container_width=True): st.session_state['seccion_activa'] = "Sugerencias"; st.rerun()
