@@ -16,11 +16,11 @@ if 'usuario_telefono' not in st.session_state: st.session_state['usuario_telefon
 if 'usuario_nombre' not in st.session_state: st.session_state['usuario_nombre'] = ""
 if 'datos_completos' not in st.session_state: st.session_state['datos_completos'] = False
 
-# --- FUNCIÓN DE ENCRIPTACIÓN ---
+# --- ENCRIPTACIÓN ---
 def encriptar(password):
     return hashlib.sha256(str(password).encode()).hexdigest()
 
-# --- FUNCIONES DE TELEGRAM ---
+# --- TELEGRAM ---
 def enviar_telegram(mensaje):
     try:
         token = st.secrets["general"]["telegram_token"]
@@ -31,7 +31,7 @@ def enviar_telegram(mensaje):
     except:
         pass
 
-# --- CONEXIÓN A GOOGLE SHEETS ---
+# --- GOOGLE SHEETS ---
 @st.cache_resource
 def conectar_sheet():
     try:
@@ -44,7 +44,6 @@ def conectar_sheet():
         sheet_datos = archivo.sheet1
         try: sheet_reportes = archivo.worksheet("Reportes")
         except: sheet_reportes = None
-        
         try: sheet_usuarios = archivo.worksheet("Usuarios")
         except: sheet_usuarios = None
             
@@ -55,12 +54,10 @@ def conectar_sheet():
 hoja, hoja_reportes, hoja_usuarios = conectar_sheet()
 
 # ==========================================
-# 1. PANTALLA DE LOGIN
+# 1. LOGIN
 # ==========================================
 def mostrar_login():
     st.title("🔒 Ingreso Usuarios")
-    st.markdown("Ingresa con tu número de teléfono.")
-    
     with st.form("login_form"):
         tel_input = st.text_input("📱 Número de Teléfono")
         pass_input = st.text_input("🔑 Contraseña", type="password")
@@ -71,7 +68,6 @@ def mostrar_login():
                 try:
                     usuarios_db = hoja_usuarios.get_all_records()
                     encontrado = False
-                    
                     for i, u in enumerate(usuarios_db):
                         fila_excel = i + 2
                         db_tel = str(u.get('Telefono', '')).strip()
@@ -95,104 +91,78 @@ def mostrar_login():
                                 st.session_state['datos_completos'] = False
                             
                             encontrado = True
-                            st.success("¡Datos correctos!")
+                            st.success("Correcto")
                             time.sleep(0.5)
                             st.rerun()
                             break
-                    
-                    if not encontrado:
-                        st.error("Teléfono o contraseña incorrectos.")
-                except Exception as e:
-                    st.error(f"Error de conexión: {e}")
+                    if not encontrado: st.error("Datos incorrectos.")
+                except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 2. PANTALLA DE REGISTRO
+# 2. REGISTRO USUARIO
 # ==========================================
 def mostrar_registro_inicial():
-    st.title("👋 ¡Bienvenido!")
-    st.warning("Configura tu cuenta personal para continuar.")
-    
+    st.title("👋 Bienvenido")
+    st.warning("Configura tu cuenta.")
     with st.form("registro_form"):
         col1, col2 = st.columns(2)
         with col1: nuevo_nombre = st.text_input("Nombre:")
         with col2: nuevo_apellido = st.text_input("Apellido:")
-        
-        nuevo_correo = st.text_input("Correo Electrónico:")
+        nuevo_correo = st.text_input("Correo:")
         st.markdown("---")
-        nueva_clave = st.text_input("Crea tu NUEVA contraseña:", type="password")
-        confirmar_clave = st.text_input("Repite la contraseña:", type="password")
+        nueva_clave = st.text_input("Nueva contraseña:", type="password")
+        confirmar_clave = st.text_input("Repite contraseña:", type="password")
         
-        guardar_datos = st.form_submit_button("Guardar y Encriptar 🔒", use_container_width=True)
-        
-        if guardar_datos:
-            if nuevo_nombre and nuevo_apellido and nuevo_correo and nueva_clave:
-                if nueva_clave == confirmar_clave:
-                    try:
-                        f = st.session_state['fila_usuario']
-                        clave_secreta = encriptar(nueva_clave)
-                        
-                        hoja_usuarios.update_cell(f, 2, clave_secreta)
-                        hoja_usuarios.update_cell(f, 3, nuevo_nombre)
-                        hoja_usuarios.update_cell(f, 4, nuevo_apellido)
-                        hoja_usuarios.update_cell(f, 5, nuevo_correo)
-                        
-                        st.session_state['datos_completos'] = True
-                        st.session_state['usuario_nombre'] = f"{nuevo_nombre} {nuevo_apellido}"
-                        
-                        st.success("¡Perfil seguro creado!")
-                        enviar_telegram(f"👤 <b>REGISTRO SEGURO</b>\nUsuario: {nuevo_nombre} {nuevo_apellido}\nTel: {st.session_state['usuario_telefono']}")
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error guardando: {e}")
-                else:
-                    st.error("Las contraseñas no coinciden.")
-            else:
-                st.error("Por favor llena todos los campos.")
+        if st.form_submit_button("Guardar"):
+            if nuevo_nombre and nueva_clave == confirmar_clave:
+                try:
+                    f = st.session_state['fila_usuario']
+                    hoja_usuarios.update_cell(f, 2, encriptar(nueva_clave))
+                    hoja_usuarios.update_cell(f, 3, nuevo_nombre)
+                    hoja_usuarios.update_cell(f, 4, nuevo_apellido)
+                    hoja_usuarios.update_cell(f, 5, nuevo_correo)
+                    
+                    st.session_state['datos_completos'] = True
+                    st.session_state['usuario_nombre'] = f"{nuevo_nombre} {nuevo_apellido}"
+                    st.rerun()
+                except: st.error("Error guardando.")
+            else: st.error("Verifica los datos.")
 
 # ==========================================
-# 3. APP PRINCIPAL
+# 3. APP PRINCIPAL (UNIFICADA)
 # ==========================================
 def mostrar_app():
+    # Sidebar
     with st.sidebar:
-        st.header(f"Hola, {st.session_state['usuario_nombre']}")
-        st.caption(f"📱 {st.session_state['usuario_telefono']}")
-        
-        if st.button("Cerrar Sesión"):
-            for key in st.session_state.keys():
-                del st.session_state[key]
+        st.write(f"👤 **{st.session_state['usuario_nombre']}**")
+        if st.button("Salir"):
+            for key in st.session_state.keys(): del st.session_state[key]
             st.rerun()
 
-    st.title("📍 Buscador de Direcciones")
+    st.title("📍 Buscador")
 
-    if not hoja: st.error("Error DB"); st.stop()
-
+    if not hoja: st.stop()
     try: registros = hoja.get_all_records()
     except: st.stop()
 
-    # --- AUTOCOMPLETADO ---
-    lista_direcciones = []
-    if registros:
-        lista_direcciones = [str(r.get('Direccion', '')) for r in registros if r.get('Direccion')]
-    
-    busqueda_seleccion = st.selectbox(
-        "🔍 Buscar dirección existente:", 
-        options=lista_direcciones, 
-        index=None, 
-        placeholder="Escribe aquí para buscar...",
-        help="Escribe para filtrar las direcciones guardadas."
-    )
+    # --- BARRA ÚNICA ---
+    busqueda = st.text_input("Escribe la dirección:", placeholder="Ej: 17811 Vail St")
 
-    if busqueda_seleccion:
-        resultados_encontrados = []
+    if busqueda:
+        texto_buscar = busqueda.strip().lower()
+        resultados = []
+        
+        # 1. BUSCAMOS SI EXISTE
         for i, fila in enumerate(registros):
             fila['_id'] = i 
-            if str(fila.get('Direccion', '')) == busqueda_seleccion:
-                resultados_encontrados.append(fila)
+            if texto_buscar in str(fila.get('Direccion', '')).strip().lower():
+                resultados.append(fila)
         
-        if resultados_encontrados:
-            st.success("✅ Dirección Encontrada:")
-            for item in resultados_encontrados:
+        # 2. DECIDIMOS QUÉ MOSTRAR
+        if resultados:
+            # --- CASO A: YA EXISTE (Mostrar Datos) ---
+            st.success(f"✅ Dirección encontrada:")
+            for item in resultados:
                 with st.container():
                     c1, c2, c3 = st.columns([3, 2, 1])
                     with c1:
@@ -205,74 +175,58 @@ def mostrar_app():
                         st.caption("Código")
                         st.markdown(f"### {item.get('Codigo')}")
                     
-                    with st.expander(f"🚨 Reportar fallo"):
-                        with st.form(f"reporte_{item['_id']}"):
-                            n_code = st.text_input("Código correcto:")
-                            nota = st.text_input("Nota:")
-                            if st.form_submit_button("Reportar"):
-                                if hoja_reportes:
-                                    quien = f"{st.session_state['usuario_nombre']} ({st.session_state['usuario_telefono']})"
-                                    hoja_reportes.append_row([item.get('Direccion'), item.get('Ciudad'), item.get('Codigo'), n_code, nota, quien])
-                                    enviar_telegram(f"🚨 <b>REPORTE</b>\n👤 <b>Por:</b> {st.session_state['usuario_nombre']}\n📍 {item.get('Direccion')}\n🔑 Nuevo: {n_code}\n💬 Nota: {nota}")
-                                    st.success("Enviado.")
-                    st.divider()
+                    with st.expander(f"Reportar"):
+                        with st.form(f"rep_{item['_id']}"):
+                            nc = st.text_input("Nuevo código:")
+                            nt = st.text_input("Nota:")
+                            if st.form_submit_button("Enviar"):
+                                quien = f"{st.session_state['usuario_nombre']} ({st.session_state['usuario_telefono']})"
+                                hoja_reportes.append_row([item.get('Direccion'), item.get('Ciudad'), item.get('Codigo'), nc, nt, quien])
+                                enviar_telegram(f"🚨 <b>REPORTE</b>\n👤 {st.session_state['usuario_nombre']}\n📍 {item.get('Direccion')}\n🔑 {nc}")
+                                st.success("Listo.")
+                st.divider()
 
-    # --- REGISTRO NUEVO ---
-    st.markdown("---")
-    with st.expander("➕ ¿No aparece en la lista? Registrar Nueva"):
-        st.info("Solo registra direcciones que NO aparezcan en el buscador de arriba.")
-        with st.form("nuevo_form"):
-            nueva_dir = st.text_input("Dirección Nueva:")
-            c1, c2 = st.columns(2)
-            with c1: ciu = st.text_input("Ciudad:", placeholder="Ej: Dallas")
-            with c2: est = st.text_input("Estado:", placeholder="Ej: TX")
-            cod = st.text_input("Código:", placeholder="#1234")
+        else:
+            # --- CASO B: NO EXISTE (Mostrar Formulario de Registro) ---
+            st.warning(f"⚠️ La dirección '{busqueda}' no existe.")
+            st.info("Completa los datos abajo para guardarla ahora mismo:")
             
-            if st.form_submit_button("Guardar Nueva", use_container_width=True):
-                if nueva_dir and cod and ciu and est:
-                    if nueva_dir in lista_direcciones:
-                        st.error("⚠️ Esa dirección YA existe.")
-                    else:
+            with st.form("auto_registro"):
+                # Pre-llenamos la dirección con lo que escribió arriba
+                st.write(f"📍 Registrando: **{busqueda}**")
+                
+                c1, c2 = st.columns(2)
+                with c1: ciu = st.text_input("Ciudad:", placeholder="Dallas")
+                with c2: est = st.text_input("Estado:", placeholder="TX")
+                cod = st.text_input("Código de acceso:", placeholder="#1234")
+                
+                if st.form_submit_button("Guardar Dirección", use_container_width=True):
+                    if cod and ciu and est:
                         quien = f"{st.session_state['usuario_nombre']} ({st.session_state['usuario_telefono']})"
-                        hoja.append_row([nueva_dir, ciu, est, cod, quien])
-                        enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 <b>Por:</b> {st.session_state['usuario_nombre']}\n📍 {nueva_dir}\n🔑 {cod}")
-                        st.success("¡Guardado! Recargando...")
+                        hoja.append_row([busqueda, ciu, est, cod, quien])
+                        enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {st.session_state['usuario_nombre']}\n📍 {busqueda}\n🔑 {cod}")
+                        st.success("¡Guardada!")
                         time.sleep(1)
                         st.rerun()
-                else:
-                    st.error("Faltan datos.")
+                    else:
+                        st.error("Faltan datos (Ciudad, Estado o Código).")
 
-    # --- SUGERENCIAS ---
+    # Footer
     st.markdown("---")
-    with st.expander("💬 Enviar Sugerencia"):
-        with st.form("form_sugerencia"):
-            st.write("¿Alguna idea para mejorar?")
-            texto_sug = st.text_area("Mensaje:")
+    with st.expander("💬 Sugerencias"):
+        with st.form("sug"):
+            msg = st.text_area("Mensaje:")
             if st.form_submit_button("Enviar"):
-                if texto_sug:
-                    enviar_telegram(f"💡 <b>SUGERENCIA</b>\n👤 <b>De:</b> {st.session_state['usuario_nombre']}\n📱 <b>Tel:</b> {st.session_state['usuario_telefono']}\n💬 {texto_sug}")
-                    st.success("Enviada. ¡Gracias!")
-                else:
-                    st.error("Escribe un mensaje.")
+                enviar_telegram(f"💡 <b>SUGERENCIA</b>\n👤 {st.session_state['usuario_nombre']}\n💬 {msg}")
+                st.success("Enviado.")
 
-    # --- FOOTER (LIMPIO) ---
-    st.markdown("---")
-    st.markdown(
-        """
-        <div style='text-align: center; color: grey;'>
-            <small>v5.3 (Autocompletado)</small>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
+    # --- FIRMA LIMPIA ---
+    st.markdown("<div style='text-align: center; color: grey;'><small>v5.4</small></div>", unsafe_allow_html=True)
 
 # ==========================================
-#        CONTROL DE FLUJO
+# CONTROL
 # ==========================================
-if not st.session_state['logueado']:
-    mostrar_login()
+if not st.session_state['logueado']: mostrar_login()
 else:
-    if st.session_state['datos_completos']:
-        mostrar_app()
-    else:
-        mostrar_registro_inicial()
+    if st.session_state['datos_completos']: mostrar_app()
+    else: mostrar_registro_inicial()
