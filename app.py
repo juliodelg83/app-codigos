@@ -30,6 +30,30 @@ hide_st_style = """
                 border-radius: 8px;
                 padding: 10px 5px;
             }
+            /* Estilo para el botón de enlace (Telegram) para que se vea igual a los botones nativos */
+            a[href^="https://t.me"] {
+                display: inline-flex;
+                -webkit-box-align: center;
+                align-items: center;
+                -webkit-box-pack: center;
+                justify-content: center;
+                font-weight: 400;
+                padding: 0.25rem 0.75rem;
+                border-radius: 0.5rem;
+                min-height: 38.4px;
+                margin: 0px;
+                line-height: 1.6;
+                color: inherit;
+                width: 100%;
+                user-select: none;
+                background-color: rgb(19, 23, 32); /* Color de fondo oscuro para el tema */
+                border: 1px solid rgba(250, 250, 250, 0.2);
+                text-decoration: none; # Quitar subrayado
+            }
+             /* Estilo específico para el botón primario (azul) si se usa un tema claro, 
+                pero en oscuro se ve bien con el estilo de arriba. 
+                Si usas el botón nativo st.link_button, streamlit maneja el estilo.
+                Vamos a usar el nativo y confiar en que se ve bien */
             a { text-decoration: none; }
             </style>
             """
@@ -90,6 +114,7 @@ def intentar_autologin():
 
     if movil_guardado and not st.session_state['logueado']:
         if not movil_guardado.isdigit() or len(movil_guardado) != 10: return False
+        
         if movil_guardado == ADMIN_TELEFONO: return False
 
         if hoja_usuarios:
@@ -119,7 +144,7 @@ if not st.session_state['logueado']:
     intentar_autologin()
 
 # ==========================================
-# 1. PANTALLAS DE ACCESO (MODIFICADA)
+# 1. PANTALLAS DE ACCESO (DISEÑO FINAL ICONOS)
 # ==========================================
 def mostrar_acceso():
     st.markdown("<br>", unsafe_allow_html=True)
@@ -152,12 +177,13 @@ def mostrar_acceso():
             st.session_state['vista_admin_login'] = False
             st.rerun()
 
-    # --- 📍 PANTALLA DE BIENVENIDA (SIN PESTAÑAS) ---
+    # --- 🗺️ PANTALLA DE BIENVENIDA (DISEÑO FINAL) ---
     else:
-        st.title("📍 Bienvenido")
+        # ✅ Título con mapa
+        st.title("🗺️ Bienvenido")
         st.write("Ingresa tus datos para acceder:")
         
-        # 1. FORMULARIO WEB DIRECTO
+        # 1. FORMULARIO DIRECTO
         with st.form("form_acceso"):
             tel = st.text_input("📱 Teléfono (10 dígitos):", max_chars=10)
             c1, c2 = st.columns(2)
@@ -194,11 +220,12 @@ def mostrar_acceso():
                                 iniciar_sesion(tel, nom, ape, "", len(usuarios_db) + 2)
                         except Exception as e: st.error(f"Error: {e}")
 
-        # 2. BOTÓN DE TELEGRAM (FUERA DEL FORMULARIO)
+        # 2. BOTÓN DE TELEGRAM GRANDE
         st.write("")
-        st.markdown("---")
+        # ✅ Botón con icono de avión
         st.link_button("✈️ Usar App en Telegram", LINK_TELEGRAM, use_container_width=True)
 
+        # 3. BOTÓN DE ADMIN
         st.write("")
         if st.button("👮 Acceso Admin", type="secondary", use_container_width=True):
             st.session_state['vista_admin_login'] = True
