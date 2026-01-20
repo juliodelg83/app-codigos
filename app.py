@@ -7,6 +7,10 @@ import urllib.parse
 import requests 
 import hashlib 
 
+# --- 👑 CONFIGURACIÓN DE ADMINISTRADOR ---
+# Escribe aquí TU número de teléfono. Solo este número verá el panel de Admin.
+ADMIN_TELEFONO = "2142595696"
+
 # Configuración de página
 st.set_page_config(page_title="App Direcciones", layout="centered")
 
@@ -20,6 +24,14 @@ hide_st_style = """
                 width: 100%;
                 border-radius: 8px;
                 padding: 10px 5px;
+            }
+            /* Estilo para tarjetas de usuario */
+            .user-card {
+                padding: 10px;
+                background-color: #262730;
+                border-radius: 10px;
+                margin-bottom: 10px;
+                border: 1px solid #41444e;
             }
             </style>
             """
@@ -85,7 +97,6 @@ def mostrar_login():
                 if reg_nombre and reg_tel and reg_pass:
                     if hoja_usuarios:
                         try:
-                            # Verificar duplicados
                             usuarios_db = hoja_usuarios.get_all_records()
                             existe = False
                             for u in usuarios_db:
@@ -95,7 +106,6 @@ def mostrar_login():
                             if existe:
                                 st.error("⚠️ Teléfono ya registrado.")
                             else:
-                                # Guardar como Pendiente
                                 hoja_usuarios.append_row([reg_tel, encriptar(reg_pass), reg_nombre, reg_apellido, reg_correo, "Pendiente"])
                                 enviar_telegram(f"🔔 <b>NUEVO</b>\n👤 {reg_nombre} {reg_apellido}\n📱 {reg_tel}\n⚠️ Estado: Pendiente")
                                 st.success("✅ Solicitud enviada.")
@@ -126,38 +136,34 @@ def mostrar_login():
                         for i, u in enumerate(usuarios_db):
                             db_tel = str(u.get('Telefono', '')).strip()
                             db_pass = str(u.get('Password', '')).strip()
-                            db_estado = str(u.get('Estado', '')).strip().lower() # Leemos el estado
+                            db_estado = str(u.get('Estado', '')).strip().lower() # Normalizamos a minúsculas
                             
                             if db_tel == tel_input.strip() and (db_pass == pass_input.strip() or db_pass == encriptar(pass_input.strip())):
                                 encontrado = True
                                 
-                                # LÓGICA DE ESTADOS
-                                if db_estado == "activo":
+                                # El ADMIN siempre entra, aunque no diga "Activo" (por seguridad para ti)
+                                es_admin = (db_tel == ADMIN_TELEFONO)
+                                
+                                if db_estado == "activo" or es_admin:
                                     st.session_state['logueado'] = True
                                     st.session_state['usuario_telefono'] = db_tel
                                     st.session_state['fila_usuario'] = i + 2
                                     st.session_state['user_nombre'] = str(u.get('Nombre', '')).strip()
                                     st.session_state['user_apellido'] = str(u.get('Apellido', '')).strip()
                                     st.session_state['user_correo'] = str(u.get('Correo', '')).strip()
+                                    st.session_state['usuario_nombre_completo'] = f"{st.session_state['user_nombre']} {st.session_state['user_apellido']}"
+                                    st.session_state['datos_completos'] = True
                                     
-                                    if st.session_state['user_nombre']:
-                                        st.session_state['datos_completos'] = True
-                                        st.session_state['usuario_nombre_completo'] = f"{st.session_state['user_nombre']} {st.session_state['user_apellido']}"
-                                    else:
-                                        st.session_state['datos_completos'] = False
-                                        
                                     st.success(f"¡Hola {st.session_state['user_nombre']}!")
                                     time.sleep(0.5)
                                     st.rerun()
                                 
                                 elif db_estado == "pendiente":
                                     st.warning("⏳ Tu cuenta está **Pendiente**. El administrador aún no la ha aprobado.")
-                                
                                 elif db_estado == "desactivado":
                                     st.error("⛔ Tu cuenta ha sido **Desactivada**. Contacta al soporte.")
-                                
                                 else:
-                                    st.error("⚠️ Estado de cuenta desconocido.")
+                                    st.error("⚠️ Estado desconocido.")
                                 break
                         
                         if not encontrado: st.error("Datos incorrectos.")
@@ -170,41 +176,21 @@ def mostrar_login():
             st.rerun()
 
 # ==========================================
-# 2. PERFIL INICIAL
-# ==========================================
-def mostrar_registro_inicial():
-    st.title("👋 Completar Perfil")
-    with st.form("registro_form"):
-        c1, c2 = st.columns(2)
-        with c1: nuevo_nombre = st.text_input("Nombre:")
-        with c2: nuevo_apellido = st.text_input("Apellido:")
-        nuevo_correo = st.text_input("Correo:")
-        
-        if st.form_submit_button("Guardar Datos", use_container_width=True):
-            if nuevo_nombre:
-                try:
-                    f = st.session_state['fila_usuario']
-                    hoja_usuarios.update_cell(f, 3, nuevo_nombre)
-                    hoja_usuarios.update_cell(f, 4, nuevo_apellido)
-                    hoja_usuarios.update_cell(f, 5, nuevo_correo)
-                    
-                    st.session_state['datos_completos'] = True
-                    st.session_state['usuario_nombre_completo'] = f"{nuevo_nombre} {nuevo_apellido}"
-                    st.session_state['user_nombre'] = nuevo_nombre
-                    st.session_state['user_apellido'] = nuevo_apellido
-                    st.session_state['user_correo'] = nuevo_correo
-                    st.rerun()
-                except: st.error("Error guardando.")
-
-# ==========================================
-# 3. APP PRINCIPAL
+# 2. APP PRINCIPAL
 # ==========================================
 def mostrar_app():
+    
+    # Detectar si es ADMIN
+    es_admin = (st.session_state['usuario_telefono'] == ADMIN_TELEFONO)
+
     st.markdown(f"### 👋 Hola, {st.session_state['user_nombre']}")
+    if es_admin:
+        st.caption("🛡️ Modo Administrador Activo")
     st.markdown("---")
+
     seccion = st.session_state['seccion_activa']
 
-    # 1. BUSCADOR
+    # --- SECCIÓN 1: BUSCADOR ---
     if seccion == "Buscador":
         if not hoja: st.stop()
         try: registros = hoja.get_all_records()
@@ -218,7 +204,6 @@ def mostrar_app():
             res = [r for i,r in enumerate(registros) if str(r.get('Direccion','')) == busqueda]
             for i,r in enumerate(registros):
                 if str(r.get('Direccion','')) == busqueda: r['_id'] = i
-            
             if res:
                 for item in res:
                     st.success("✅ Encontrada")
@@ -237,7 +222,7 @@ def mostrar_app():
                                     st.success("Enviado")
         else: st.info("Utiliza el botón '➕ Nuevo' abajo si la dirección no existe.")
 
-    # 2. REGISTRAR
+    # --- SECCIÓN 2: REGISTRAR ---
     elif seccion == "Registrar":
         st.subheader("➕ Nueva Dirección")
         with st.form("reg_form"):
@@ -246,19 +231,15 @@ def mostrar_app():
             with c1: ci = st.text_input("Ciudad:", value="Dallas")
             with c2: es = st.text_input("Estado:", value="TX")
             co = st.text_input("Código:")
-            
             if st.form_submit_button("Guardar", use_container_width=True):
                 if nd and co:
                     quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
                     hoja.append_row([nd, ci, es, co, quien])
                     enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {quien}\n📍 {nd}\n🔑 {co}")
-                    st.success("Guardado")
-                    time.sleep(1)
-                    st.session_state['seccion_activa'] = "Buscador"
-                    st.rerun()
+                    st.success("Guardado"); time.sleep(1); st.session_state['seccion_activa'] = "Buscador"; st.rerun()
                 else: st.error("Faltan datos")
 
-    # 3. SUGERENCIAS
+    # --- SECCIÓN 3: SUGERENCIAS ---
     elif seccion == "Sugerencias":
         st.subheader("💬 Sugerencias")
         with st.form("sug_form"):
@@ -268,17 +249,16 @@ def mostrar_app():
                     enviar_telegram(f"💡 <b>SUGERENCIA</b>\n👤 {st.session_state['usuario_nombre_completo']}\n💬 {txt}")
                     st.success("Enviado")
 
-    # 4. PERFIL
+    # --- SECCIÓN 4: PERFIL ---
     elif seccion == "Perfil":
         st.subheader("⚙️ Mi Perfil")
         tab1, tab2 = st.tabs(["Mis Datos", "Contraseña"])
-        
         with tab1:
             with st.form("edit_perfil"):
                 un = st.text_input("Nombre:", value=st.session_state['user_nombre'])
                 ua = st.text_input("Apellido:", value=st.session_state['user_apellido'])
                 uc = st.text_input("Correo:", value=st.session_state['user_correo'])
-                if st.form_submit_button("Actualizar Datos"):
+                if st.form_submit_button("Actualizar"):
                     usuarios_db = hoja_usuarios.get_all_records()
                     for i, u in enumerate(usuarios_db):
                         if str(u.get('Telefono', '')).strip() == st.session_state['usuario_telefono']:
@@ -288,11 +268,7 @@ def mostrar_app():
                             st.session_state['user_nombre'] = un
                             st.session_state['user_apellido'] = ua
                             st.session_state['user_correo'] = uc
-                            st.session_state['usuario_nombre_completo'] = f"{un} {ua}"
-                            st.success("Actualizado")
-                            time.sleep(1)
-                            st.rerun()
-
+                            st.success("Actualizado"); time.sleep(1); st.rerun()
         with tab2:
             with st.form("edit_pass"):
                 ca = st.text_input("Actual:", type="password")
@@ -305,27 +281,103 @@ def mostrar_app():
                             if str(u.get('Password','')).strip() == encriptar(ca):
                                 if cn == cc:
                                     hoja_usuarios.update_cell(i+2, 2, encriptar(cn))
-                                    st.success("Clave cambiada")
+                                    st.success("Listo")
                                 else: st.error("No coinciden")
-                            else: st.error("Clave actual mal")
+                            else: st.error("Clave mal")
 
+    # --- SECCIÓN 5: ADMIN (SOLO JEFE) ---
+    elif seccion == "Admin" and es_admin:
+        st.subheader("👮 Panel de Control")
+        if not hoja_usuarios: st.stop()
+        
+        try:
+            # Obtenemos datos frescos
+            todos_usuarios = hoja_usuarios.get_all_records()
+            
+            # Pestañas de filtros
+            tab_pend, tab_act, tab_todos = st.tabs(["⏳ Pendientes", "✅ Activos", "👥 Todos"])
+            
+            # --- PENDIENTES ---
+            with tab_pend:
+                pendientes = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'pendiente']
+                if not pendientes:
+                    st.info("No hay solicitudes pendientes.")
+                else:
+                    for p in pendientes:
+                        # Buscamos el índice real en la lista completa para editar la fila correcta
+                        idx_real = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == p['Telefono']), -1)
+                        fila_sheet = idx_real + 2
+                        
+                        with st.container(border=True):
+                            c1, c2 = st.columns([3, 1])
+                            with c1:
+                                st.write(f"**{p.get('Nombre')} {p.get('Apellido')}**")
+                                st.caption(f"📱 {p.get('Telefono')} | ✉️ {p.get('Correo')}")
+                            with c2:
+                                if st.button("Aprobar", key=f"apr_{p['Telefono']}", type="primary"):
+                                    hoja_usuarios.update_cell(fila_sheet, 6, "Activo")
+                                    st.toast(f"Aprobado {p.get('Nombre')}")
+                                    time.sleep(1)
+                                    st.rerun()
+                                if st.button("Bloquear", key=f"rej_{p['Telefono']}"):
+                                    hoja_usuarios.update_cell(fila_sheet, 6, "Desactivado")
+                                    st.toast("Usuario bloqueado")
+                                    time.sleep(1)
+                                    st.rerun()
+
+            # --- ACTIVOS ---
+            with tab_act:
+                activos = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'activo']
+                st.metric("Usuarios Activos", len(activos))
+                for a in activos:
+                    idx_real = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == a['Telefono']), -1)
+                    fila_sheet = idx_real + 2
+                    
+                    with st.expander(f"🟢 {a.get('Nombre')} {a.get('Apellido')}"):
+                        st.write(f"📱 {a.get('Telefono')}")
+                        st.write(f"✉️ {a.get('Correo')}")
+                        if st.button("Desactivar Cuenta", key=f"des_{a['Telefono']}"):
+                            hoja_usuarios.update_cell(fila_sheet, 6, "Desactivado")
+                            st.rerun()
+
+            # --- TODOS ---
+            with tab_todos:
+                st.dataframe(todos_usuarios)
+
+        except Exception as e:
+            st.error(f"Error cargando usuarios: {e}")
+
+    # --- BARRA DE NAVEGACIÓN ---
     st.markdown("---")
     st.markdown("<br>", unsafe_allow_html=True)
-    c_nav1, c_nav2, c_nav3, c_nav4, c_nav5 = st.columns(5)
-    with c_nav1:
+    
+    # Si es admin mostramos 5 columnas, si no, solo 4
+    cols = st.columns(5) if es_admin else st.columns(4)
+    
+    with cols[0]:
         if st.button("🔍 Buscar", use_container_width=True): st.session_state['seccion_activa'] = "Buscador"; st.rerun()
-    with c_nav2:
+    with cols[1]:
         if st.button("➕ Nuevo", use_container_width=True): st.session_state['seccion_activa'] = "Registrar"; st.rerun()
-    with c_nav3:
+    with cols[2]:
         if st.button("💬 Ideas", use_container_width=True): st.session_state['seccion_activa'] = "Sugerencias"; st.rerun()
-    with c_nav4:
+    with cols[3]:
         if st.button("⚙️ Perfil", use_container_width=True): st.session_state['seccion_activa'] = "Perfil"; st.rerun()
-    with c_nav5:
-        if st.button("🚪 Salir", use_container_width=True):
-            for key in st.session_state.keys(): del st.session_state[key]
-            st.rerun()
+    
+    if es_admin:
+        with cols[4]:
+            if st.button("👮 Admin", use_container_width=True): st.session_state['seccion_activa'] = "Admin"; st.rerun()
 
+    # Botón de salir (abajo del todo para no ocupar columna en móvil si no hay espacio)
+    st.write("")
+    if st.button("🚪 Cerrar Sesión", use_container_width=True):
+        for key in st.session_state.keys(): del st.session_state[key]
+        st.rerun()
+
+# ==========================================
+# CONTROL
+# ==========================================
 if not st.session_state['logueado']: mostrar_login()
 else:
-    if st.session_state['datos_completos']: mostrar_app()
-    else: mostrar_registro_inicial()
+    # Si falta completar datos básicos, forzamos perfil. Si no, App.
+    # (En v8 la app ya maneja datos incompletos en el perfil, pero por seguridad):
+    mostrar_app()
