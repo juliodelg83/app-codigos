@@ -49,6 +49,11 @@ def encriptar(password):
 def get_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+# --- 🆕 FUNCIÓN PARA FORMATO (Igual que en el Bot) ---
+def capitalizar_palabras(texto):
+    if not texto: return ""
+    return ' '.join(word.capitalize() for word in texto.lower().split())
+
 def enviar_telegram(mensaje):
     try:
         token = st.secrets["general"]["telegram_token"]
@@ -72,7 +77,7 @@ def conectar_sheet():
 hoja, hoja_reportes, hoja_usuarios = conectar_sheet()
 
 # ==========================================
-# ⚙️ AUTO-LOGIN (SOLO USUARIOS NORMALES)
+# ⚙️ AUTO-LOGIN
 # ==========================================
 def intentar_autologin():
     query_params = st.query_params
@@ -81,7 +86,7 @@ def intentar_autologin():
     if movil_guardado and not st.session_state['logueado']:
         if not movil_guardado.isdigit() or len(movil_guardado) != 10: return False
         
-        # SI ES ADMIN, NO HACEMOS AUTO-LOGIN (Seguridad Extra)
+        # SI ES ADMIN, NO HACEMOS AUTO-LOGIN
         if movil_guardado == ADMIN_TELEFONO:
             return False
 
@@ -117,53 +122,45 @@ if not st.session_state['logueado']:
 def mostrar_acceso():
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # --- 👮 PANTALLA EXCLUSIVA ADMIN (CON PASSWORD) ---
+    # --- 👮 PANTALLA EXCLUSIVA ADMIN ---
     if st.session_state['vista_admin_login']:
         st.title("👮 Acceso Administrador")
         st.caption("Área restringida.")
         
         with st.form("form_admin"):
-            tel_admin = st.text_input("usuario:", placeholder="Número de teléfono") 
+            tel_admin = st.text_input("Usuario:", placeholder="Número de teléfono") 
             pass_admin = st.text_input("Contraseña:", type="password")
             
             if st.form_submit_button("Entrar como Admin", use_container_width=True):
-                # 1. Validar que sea el número correcto
                 if tel_admin == ADMIN_TELEFONO:
                     if hoja_usuarios:
                         try:
                             usuarios_db = hoja_usuarios.get_all_records()
                             encontrado_admin = False
-                            
-                            # 2. Buscar al Admin en la BD y validar contraseña
                             for i, u in enumerate(usuarios_db):
                                 db_tel = str(u.get('Telefono', '')).strip()
-                                
                                 if db_tel == ADMIN_TELEFONO:
                                     db_pass = str(u.get('Password', '')).strip()
-                                    
-                                    # Verificamos hash o texto plano por si acaso
                                     if db_pass == encriptar(pass_admin) or db_pass == pass_admin:
                                         fila_admin = i + 2
                                         nombre_admin = str(u.get('Nombre','Admin'))
                                         apellido_admin = str(u.get('Apellido',''))
-                                        
                                         iniciar_sesion(ADMIN_TELEFONO, nombre_admin, apellido_admin, "", fila_admin)
                                         encontrado_admin = True
                                         break
-                            
                             if not encontrado_admin:
-                                st.error("❌ El usuario Admin no está configurado en la base de datos o la contraseña es incorrecta.")
+                                st.error("❌ Credenciales incorrectas.")
                         except Exception as e:
                             st.error(f"Error de conexión: {e}")
                 else:
-                    st.error("⛔ Este número no tiene permisos de Administrador.")
+                    st.error("⛔ Sin permisos.")
         
         st.write("")
         if st.button("⬅️ Volver a Usuario", use_container_width=True):
             st.session_state['vista_admin_login'] = False
             st.rerun()
 
-    # --- 📍 PANTALLA USUARIO NORMAL (SIN PASSWORD) ---
+    # --- 📍 PANTALLA USUARIO NORMAL ---
     else:
         st.title("📍 Bienvenido")
         st.write("Ingresa tus datos para acceder.")
@@ -178,17 +175,12 @@ def mostrar_acceso():
             entrar = st.form_submit_button("Ingresar a la App", use_container_width=True)
             
             if entrar:
-                # 1. BLOQUEO DE ADMIN (Sin detener la app completa)
                 if tel == ADMIN_TELEFONO:
                     st.error("⛔ Número reservado.")
-                
-                # 2. VALIDACIONES RESTO
                 elif not tel.isdigit() or len(tel) != 10:
                     st.error("⚠️ El teléfono debe tener 10 números.")
                 elif not nom or not ape:
-                    st.error("⚠️ Nombre y Apellido obligatorios.")
-                
-                # 3. PROCESO DE INGRESO
+                    st.error("⚠️ Datos incompletos.")
                 else:
                     if hoja_usuarios:
                         try:
@@ -201,9 +193,8 @@ def mostrar_acceso():
                                     encontrado = True
                                     db_estado = str(u.get('Estado', '')).strip().lower()
                                     if db_estado == "desactivado":
-                                        st.error("⛔ Acceso denegado.")
+                                        st.error("⛔ Acceso denegado. Contacta al admin.")
                                     else:
-                                        # Login exitoso
                                         fila = i + 2
                                         if str(u.get('Nombre','')) != nom:
                                             hoja_usuarios.update_cell(fila, 3, nom)
@@ -212,14 +203,13 @@ def mostrar_acceso():
                                     break
                             
                             if not encontrado:
-                                # Registro automático "Activo"
-                                hoja_usuarios.append_row([tel, "N/A", nom, ape, "", "Activo"])
-                                enviar_telegram(f"🆕 <b>NUEVO USUARIO</b>\n👤 {nom} {ape}\n📱 {tel}")
+                                # Registro automático "Activo" con origen Web
+                                hoja_usuarios.append_row([tel, "N/A", nom, ape, "", "Activo", "Web"])
+                                enviar_telegram(f"🆕 <b>NUEVO USUARIO (Web)</b>\n👤 {nom} {ape}\n📱 {tel}")
                                 iniciar_sesion(tel, nom, ape, "", len(usuarios_db) + 2)
                                 
                         except Exception as e: st.error(f"Error: {e}")
 
-        # --- BOTÓN ADMIN ---
         st.markdown("---")
         if st.button("👮 Acceso Admin", type="secondary", use_container_width=True):
             st.session_state['vista_admin_login'] = True
@@ -235,7 +225,6 @@ def iniciar_sesion(tel, nombre, apellido, correo, fila):
     st.session_state['usuario_nombre_completo'] = f"{nombre} {apellido}"
     st.session_state['datos_completos'] = True
     
-    # Solo guardamos autologin si NO es admin
     if tel != ADMIN_TELEFONO:
         st.query_params["movil"] = tel
         
@@ -266,6 +255,7 @@ def mostrar_app():
         
         if busqueda:
             busqueda_lower = busqueda.lower().strip()
+            # Buscamos coincidencias
             coincidencias = [r for r in registros if busqueda_lower in str(r.get('Direccion','')).lower()]
             
             if coincidencias:
@@ -276,18 +266,26 @@ def mostrar_app():
                         st.markdown(f"📍 **{item.get('Direccion')}**")
                         st.write(f"🏙 {item.get('Ciudad')}, {item.get('Estado')}")
                         st.markdown(f"## 🔑 {item.get('Codigo')}")
+                        
+                        # --- 🆕 Mostrar Origen ---
+                        origen = item.get('Origen', 'Desconocido')
+                        if origen == 'Telegram': st.caption("📱 Registrado desde Telegram")
+                        elif origen == 'Web': st.caption("🌐 Registrado desde Web")
+                        else: st.caption(f"ℹ️ Fuente: {origen}")
+                        
                         with st.expander("Reportar Error"):
                             with st.form(f"rep_{idx}"):
                                 nc = st.text_input("Nuevo código:")
                                 nt = st.text_input("Nota:")
                                 if st.form_submit_button("Reportar"):
                                     quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
-                                    hoja_reportes.append_row([item.get('Direccion'), item.get('Ciudad'), item.get('Codigo'), nc, nt, quien, get_time()])
-                                    enviar_telegram(f"🚨 <b>REPORTE</b>\n👤 {quien}\n📍 {item.get('Direccion')}\n🔑 {nc}")
+                                    hoja_reportes.append_row([item.get('Direccion'), item.get('Ciudad'), item.get('Codigo'), nc, nt, quien, get_time(), "Web"])
+                                    enviar_telegram(f"🚨 <b>REPORTE (Web)</b>\n👤 {quien}\n📍 {item.get('Direccion')}\n🔑 {nc}")
                                     st.success("Enviado")
             else:
                 st.warning("⚠️ No encontrada.")
             
+            # Botón inteligente de registro si no existe o si quiere agregar otra
             st.markdown("---")
             if st.button(f"➕ Registrar '{busqueda}'", use_container_width=True):
                 st.session_state['memoria_direccion'] = busqueda
@@ -298,20 +296,33 @@ def mostrar_app():
     elif seccion == "Registrar":
         st.subheader("➕ Nueva Dirección")
         val_ini = st.session_state.get('memoria_direccion', "")
+        
         with st.form("reg_form"):
-            nd = st.text_input("Dirección:", value=val_ini)
+            nd = st.text_input("Dirección:", value=val_ini, placeholder="Ej: 1234 Calle Principal")
             c1, c2 = st.columns(2)
             with c1: ci = st.text_input("Ciudad:", value="Dallas")
             with c2: es = st.text_input("Estado:", value="TX")
-            co = st.text_input("Código:")
+            co = st.text_input("Código de Acceso:")
+            
             if st.form_submit_button("Guardar", use_container_width=True):
                 if nd and co:
+                    # --- 🆕 APLICAR FORMATO AUTOMÁTICO ---
+                    nd_fmt = capitalizar_palabras(nd)
+                    ci_fmt = capitalizar_palabras(ci)
+                    es_fmt = es.upper() # Estado siempre mayúsculas
+                    
                     quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
-                    hoja.append_row([nd, ci, es, co, quien, get_time()])
-                    enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {quien}\n📍 {nd}\n🔑 {co}")
+                    
+                    # --- 🆕 AGREGAR COLUMNA "Web" AL FINAL ---
+                    hoja.append_row([nd_fmt, ci_fmt, es_fmt, co, quien, get_time(), "Web"])
+                    
+                    enviar_telegram(f"🆕 <b>NUEVO (Web)</b>\n👤 {quien}\n📍 {nd_fmt}\n🔑 {co}")
                     st.session_state['memoria_direccion'] = ""
-                    st.success("Guardado"); time.sleep(1); st.session_state['seccion_activa'] = "Buscador"; st.rerun()
-                else: st.error("Faltan datos")
+                    st.success(f"✅ Guardado como: {nd_fmt}")
+                    time.sleep(1.5)
+                    st.session_state['seccion_activa'] = "Buscador"
+                    st.rerun()
+                else: st.error("Faltan datos obligatorios")
 
     # --- SUGERENCIAS ---
     elif seccion == "Sugerencias":
@@ -320,7 +331,7 @@ def mostrar_app():
             txt = st.text_area("Mensaje:")
             if st.form_submit_button("Enviar", use_container_width=True):
                 if txt:
-                    enviar_telegram(f"💡 <b>IDEA</b>\n👤 {st.session_state['usuario_nombre_completo']}\n💬 {txt}")
+                    enviar_telegram(f"💡 <b>IDEA (Web)</b>\n👤 {st.session_state['usuario_nombre_completo']}\n💬 {txt}")
                     st.success("Enviado")
 
     # --- PERFIL ---
@@ -342,7 +353,7 @@ def mostrar_app():
 
     # --- ADMIN ---
     elif seccion == "Admin" and es_admin:
-        st.subheader("👮 Admin")
+        st.subheader("👮 Panel Admin")
         if not hoja_usuarios: st.stop()
         try:
             todos_usuarios = hoja_usuarios.get_all_records()
@@ -352,23 +363,30 @@ def mostrar_app():
                 activos = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'activo']
                 st.metric("Usuarios Activos", len(activos))
                 for a in activos:
+                    # Buscamos índice correcto sumando 2 (header + 0-index)
                     idx = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == a['Telefono']), -1) + 2
                     with st.expander(f"🟢 {a.get('Nombre')} {a.get('Apellido')}"):
-                        st.caption(f"📱 {a.get('Telefono')}")
+                        st.caption(f"📱 {a.get('Telefono')} | 🌐 {a.get('Origen', 'N/A')}")
                         if st.button("Bloquear Acceso", key=f"d_{a['Telefono']}"):
                             hoja_usuarios.update_cell(idx, 6, "Desactivado")
+                            st.toast(f"{a.get('Nombre')} bloqueado.")
+                            time.sleep(1)
                             st.rerun()
             with tab_bloq:
                 bloq = [u for i,u in enumerate(todos_usuarios) if str(u.get('Estado','')).lower() == 'desactivado']
-                if not bloq: st.info("Nadie bloqueado.")
+                if not bloq: st.info("No hay usuarios bloqueados.")
                 for b in bloq:
                     idx = next((i for i, u in enumerate(todos_usuarios) if u['Telefono'] == b['Telefono']), -1) + 2
                     with st.container(border=True):
                         st.write(f"🔴 {b.get('Nombre')} {b.get('Apellido')}")
+                        st.caption(f"📱 {b.get('Telefono')}")
                         if st.button("Desbloquear", key=f"re_{b['Telefono']}"):
                             hoja_usuarios.update_cell(idx, 6, "Activo")
+                            st.toast(f"{b.get('Nombre')} activado.")
+                            time.sleep(1)
                             st.rerun()
             with tab_todos:
+                # Ocultamos password por seguridad visual
                 visibles = [{k: v for k, v in u.items() if k != 'Password'} for u in todos_usuarios]
                 st.dataframe(visibles)
         except Exception as e: st.error(f"Error: {e}")
