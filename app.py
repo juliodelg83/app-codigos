@@ -15,7 +15,7 @@ ADMIN_TELEFONO = "2142595696"
 LINK_TELEGRAM = "https://t.me/BuscadordecodigosBot" 
 
 # 👇 TU LOGO DE MAPA
-LOGO_MAPA = "https://share.google/lYGxwInu3n38g4bI4"
+LOGO_MAPA = "https://photos.app.goo.gl/f4dxqDVD8NigZ93DA"
 
 # Configuración de página
 st.set_page_config(page_title="App Direcciones", layout="centered")
@@ -419,3 +419,4 @@ def mostrar_app():
 
 if not st.session_state['logueado']: mostrar_acceso()
 else: mostrar_app()
+
