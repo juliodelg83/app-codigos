@@ -12,49 +12,59 @@ from datetime import datetime
 # 👑 CONFIGURACIÓN GENERAL
 # ==========================================
 ADMIN_TELEFONO = "2142595696"
-
-# 👇 ENLACE DE TU BOT
 LINK_TELEGRAM = "https://t.me/BuscadordecodigosBot" 
+LOGO_MAPA = "https://share.google/lYGxwInu3n38g4bI4"
 
 # Configuración de página
 st.set_page_config(page_title="App Direcciones", layout="centered")
 
-# --- 🎨 CSS ---
+# --- 🎨 CSS MEJORADO (SOLUCIÓN PANTALLA NEGRA) ---
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
             header {visibility: hidden;}
+            
+            /* Estilo general de botones de Streamlit */
             div.stButton > button {
                 width: 100%;
                 border-radius: 8px;
                 padding: 10px 5px;
             }
-            /* Estilo para el botón de enlace (Telegram) para que se vea igual a los botones nativos */
-            a[href^="https://t.me"] {
+
+            /* ✈️ BOTÓN TELEGRAM PERSONALIZADO (AZUL) */
+            .telegram-btn {
                 display: inline-flex;
-                -webkit-box-align: center;
                 align-items: center;
-                -webkit-box-pack: center;
                 justify-content: center;
-                font-weight: 400;
-                padding: 0.25rem 0.75rem;
-                border-radius: 0.5rem;
-                min-height: 38.4px;
-                margin: 0px;
-                line-height: 1.6;
-                color: inherit;
                 width: 100%;
-                user-select: none;
-                background-color: rgb(19, 23, 32); /* Color de fondo oscuro para el tema */
-                border: 1px solid rgba(250, 250, 250, 0.2);
-                text-decoration: none; # Quitar subrayado
+                background-color: #29a0da; /* Azul Telegram */
+                color: white !important;
+                padding: 10px 20px;
+                border-radius: 8px;
+                text-decoration: none;
+                font-weight: bold;
+                margin-top: 10px;
+                margin-bottom: 10px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                transition: background-color 0.3s;
             }
-             /* Estilo específico para el botón primario (azul) si se usa un tema claro, 
-                pero en oscuro se ve bien con el estilo de arriba. 
-                Si usas el botón nativo st.link_button, streamlit maneja el estilo.
-                Vamos a usar el nativo y confiar en que se ve bien */
-            a { text-decoration: none; }
+            .telegram-btn:hover {
+                background-color: #0088cc;
+                color: white !important;
+                text-decoration: none;
+            }
+            .telegram-btn:active {
+                color: white !important;
+                text-decoration: none;
+            }
+
+            /* Ajuste para centrar imagen del logo */
+            div[data-testid="stImage"] {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
@@ -114,7 +124,6 @@ def intentar_autologin():
 
     if movil_guardado and not st.session_state['logueado']:
         if not movil_guardado.isdigit() or len(movil_guardado) != 10: return False
-        
         if movil_guardado == ADMIN_TELEFONO: return False
 
         if hoja_usuarios:
@@ -123,10 +132,8 @@ def intentar_autologin():
                 for i, u in enumerate(usuarios_db):
                     db_tel = str(u.get('Telefono', '')).strip()
                     db_estado = str(u.get('Estado', '')).strip().lower()
-                    
                     if db_tel == movil_guardado:
                         if db_estado == "desactivado": return False
-                        
                         st.session_state['logueado'] = True
                         st.session_state['usuario_telefono'] = db_tel
                         st.session_state['fila_usuario'] = i + 2
@@ -144,7 +151,7 @@ if not st.session_state['logueado']:
     intentar_autologin()
 
 # ==========================================
-# 1. PANTALLAS DE ACCESO (DISEÑO FINAL ICONOS)
+# 1. PANTALLAS DE ACCESO
 # ==========================================
 def mostrar_acceso():
     st.markdown("<br>", unsafe_allow_html=True)
@@ -177,13 +184,16 @@ def mostrar_acceso():
             st.session_state['vista_admin_login'] = False
             st.rerun()
 
-    # --- 🗺️ PANTALLA DE BIENVENIDA (DISEÑO FINAL) ---
+    # --- 🗺️ PANTALLA DE BIENVENIDA ---
     else:
-        # ✅ Título con mapa
-        st.title("🗺️ Bienvenido")
+        col_logo, col_texto = st.columns([1, 4])
+        with col_logo:
+            st.image(LOGO_MAPA, width=80) 
+        with col_texto:
+            st.title("Bienvenido")
+
         st.write("Ingresa tus datos para acceder:")
         
-        # 1. FORMULARIO DIRECTO
         with st.form("form_acceso"):
             tel = st.text_input("📱 Teléfono (10 dígitos):", max_chars=10)
             c1, c2 = st.columns(2)
@@ -220,12 +230,14 @@ def mostrar_acceso():
                                 iniciar_sesion(tel, nom, ape, "", len(usuarios_db) + 2)
                         except Exception as e: st.error(f"Error: {e}")
 
-        # 2. BOTÓN DE TELEGRAM GRANDE
+        # ✅ BOTÓN TELEGRAM CORREGIDO (AZUL Y HTML PURO)
         st.write("")
-        # ✅ Botón con icono de avión
-        st.link_button("✈️ Usar App en Telegram", LINK_TELEGRAM, use_container_width=True)
+        st.markdown(f'''
+            <a href="{LINK_TELEGRAM}" target="_blank" class="telegram-btn">
+                ✈️ Usar App en Telegram
+            </a>
+        ''', unsafe_allow_html=True)
 
-        # 3. BOTÓN DE ADMIN
         st.write("")
         if st.button("👮 Acceso Admin", type="secondary", use_container_width=True):
             st.session_state['vista_admin_login'] = True
@@ -251,13 +263,18 @@ def iniciar_sesion(tel, nombre, apellido, correo, fila):
 def mostrar_app():
     es_admin = (st.session_state['usuario_telefono'] == ADMIN_TELEFONO)
     
-    # Header
+    # ✅ CABECERA CON BOTÓN AZUL PEQUEÑO
     c_head_1, c_head_2 = st.columns([3, 1])
     with c_head_1:
         st.markdown(f"### 👋 Hola, {st.session_state['user_nombre']}")
         if es_admin: st.caption("🛡️ Modo Admin")
     with c_head_2:
-        st.link_button("📱 Bot", LINK_TELEGRAM)
+        # Botón pequeño azul
+        st.markdown(f'''
+            <a href="{LINK_TELEGRAM}" target="_blank" class="telegram-btn" style="padding: 5px 10px; font-size: 0.8rem; margin: 0;">
+                📱 Bot
+            </a>
+        ''', unsafe_allow_html=True)
 
     st.markdown("---")
     seccion = st.session_state['seccion_activa']
@@ -355,7 +372,12 @@ def mostrar_app():
     elif seccion == "Perfil":
         st.subheader("⚙️ Mi Perfil")
         st.write(f"📱 **{st.session_state['usuario_telefono']}**")
-        st.link_button("🤖 Abrir @BuscadordecodigosBot", LINK_TELEGRAM, use_container_width=True)
+        # Botón Azul
+        st.markdown(f'''
+            <a href="{LINK_TELEGRAM}" target="_blank" class="telegram-btn">
+                ✈️ Abrir @BuscadordecodigosBot
+            </a>
+        ''', unsafe_allow_html=True)
         st.markdown("---")
         with st.form("edit_perfil"):
             un = st.text_input("Nombre:", value=st.session_state['user_nombre'])
