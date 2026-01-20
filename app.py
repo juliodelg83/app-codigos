@@ -11,18 +11,20 @@ import hashlib
 st.set_page_config(page_title="App Direcciones", layout="centered")
 
 # --- 🎨 CSS: ESTILO MÓVIL ---
-# Ocultamos el menú superior y el footer para que parezca una App nativa
+# Ocultamos header y footer, y ajustamos los botones de abajo para que quepa el texto
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
             header {visibility: hidden;}
             
-            /* Ajuste para que los botones de abajo se vean mejor */
+            /* Ajuste botones inferiores */
             div.stButton > button {
                 width: 100%;
-                border-radius: 10px;
-                height: 3em;
+                border-radius: 8px;
+                height: auto;
+                padding: 10px 5px;
+                font-size: 14px;
             }
             </style>
             """
@@ -82,7 +84,7 @@ hoja, hoja_reportes, hoja_usuarios = conectar_sheet()
 # 1. LOGIN
 # ==========================================
 def mostrar_login():
-    st.markdown("<br><br>", unsafe_allow_html=True) # Espacio arriba
+    st.markdown("<br><br>", unsafe_allow_html=True)
     st.title("🔒 Ingreso")
     
     with st.form("login_form"):
@@ -108,7 +110,6 @@ def mostrar_login():
                             st.session_state['usuario_telefono'] = db_tel
                             st.session_state['fila_usuario'] = fila_excel 
                             
-                            # Cargar datos
                             nombre_db = str(u.get('Nombre', '')).strip()
                             apellido_db = str(u.get('Apellido', '')).strip()
                             correo_db = str(u.get('Correo', '')).strip()
@@ -168,14 +169,12 @@ def mostrar_registro_inicial():
 # ==========================================
 def mostrar_app():
     
-    # --- CABECERA PRINCIPAL ---
-    # Mostramos el saludo arriba, fuera de cualquier sidebar
+    # --- CABECERA ---
     col_saludo_1, col_saludo_2 = st.columns([3, 1])
     with col_saludo_1:
         st.markdown(f"### 👋 Hola, {st.session_state['user_nombre']}")
         st.caption("Bienvenido al Buscador")
     with col_saludo_2:
-        # Botón pequeño de salir arriba a la derecha (opcional, por si acaso)
         pass 
 
     st.markdown("---")
@@ -236,7 +235,7 @@ def mostrar_app():
                     enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {st.session_state['usuario_nombre_completo']}\n📍 {nd}\n🔑 {co}")
                     st.success("Guardado")
                     time.sleep(1)
-                    st.session_state['seccion_activa'] = "Buscador" # Volver al buscador
+                    st.session_state['seccion_activa'] = "Buscador"
                     st.rerun()
                 else:
                     st.error("Faltan datos")
@@ -262,7 +261,6 @@ def mostrar_app():
                 ua = st.text_input("Apellido:", value=st.session_state['user_apellido'])
                 uc = st.text_input("Correo:", value=st.session_state['user_correo'])
                 if st.form_submit_button("Actualizar Datos"):
-                    # Lógica actualización (Simplificada)
                     usuarios_db = hoja_usuarios.get_all_records()
                     for i, u in enumerate(usuarios_db):
                         if str(u.get('Telefono', '')).strip() == st.session_state['usuario_telefono']:
@@ -283,7 +281,6 @@ def mostrar_app():
                 cn = st.text_input("Nueva:", type="password")
                 cc = st.text_input("Repetir:", type="password")
                 if st.form_submit_button("Cambiar Clave"):
-                    # Lógica clave
                     usuarios_db = hoja_usuarios.get_all_records()
                     for i, u in enumerate(usuarios_db):
                         if str(u.get('Telefono', '')).strip() == st.session_state['usuario_telefono']:
@@ -294,31 +291,32 @@ def mostrar_app():
                                 else: st.error("No coinciden")
                             else: st.error("Clave actual mal")
 
-    # --- BARRA DE NAVEGACIÓN INFERIOR ---
+    # --- BARRA DE NAVEGACIÓN INFERIOR (CON NOMBRES) ---
     st.markdown("---")
-    st.markdown("<br>", unsafe_allow_html=True) # Espacio extra
+    st.markdown("<br>", unsafe_allow_html=True)
     
-    # Creamos 5 columnas para los botones de abajo
+    # 5 Columnas para el menú
     c_nav1, c_nav2, c_nav3, c_nav4, c_nav5 = st.columns(5)
     
     with c_nav1:
-        if st.button("🔍", help="Buscador", use_container_width=True):
+        # Usamos texto corto para que quepa en el celular
+        if st.button("🔍 Buscar", use_container_width=True):
             st.session_state['seccion_activa'] = "Buscador"
             st.rerun()
     with c_nav2:
-        if st.button("➕", help="Nuevo", use_container_width=True):
+        if st.button("➕ Nuevo", use_container_width=True):
             st.session_state['seccion_activa'] = "Registrar"
             st.rerun()
     with c_nav3:
-        if st.button("💬", help="Sugerencias", use_container_width=True):
+        if st.button("💬 Ideas", use_container_width=True):
             st.session_state['seccion_activa'] = "Sugerencias"
             st.rerun()
     with c_nav4:
-        if st.button("⚙️", help="Perfil", use_container_width=True):
+        if st.button("⚙️ Perfil", use_container_width=True):
             st.session_state['seccion_activa'] = "Perfil"
             st.rerun()
     with c_nav5:
-        if st.button("🚪", help="Salir", use_container_width=True):
+        if st.button("🚪 Salir", use_container_width=True):
             for key in st.session_state.keys(): del st.session_state[key]
             st.rerun()
 
