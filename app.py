@@ -10,20 +10,16 @@ import hashlib
 # Configuración de página
 st.set_page_config(page_title="App Direcciones", layout="centered")
 
-# --- 🎨 CSS: ESTILO MÓVIL ---
+# --- 🎨 CSS ---
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
             header {visibility: hidden;}
-            
-            /* Ajuste botones */
             div.stButton > button {
                 width: 100%;
                 border-radius: 8px;
-                height: auto;
                 padding: 10px 5px;
-                font-size: 14px;
             }
             </style>
             """
@@ -33,22 +29,18 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 if 'logueado' not in st.session_state: st.session_state['logueado'] = False
 if 'usuario_telefono' not in st.session_state: st.session_state['usuario_telefono'] = ""
 if 'usuario_nombre_completo' not in st.session_state: st.session_state['usuario_nombre_completo'] = ""
-# Datos perfil
 if 'user_nombre' not in st.session_state: st.session_state['user_nombre'] = ""
 if 'user_apellido' not in st.session_state: st.session_state['user_apellido'] = ""
 if 'user_correo' not in st.session_state: st.session_state['user_correo'] = ""
 if 'datos_completos' not in st.session_state: st.session_state['datos_completos'] = False
 
-# Control de navegación
 if 'seccion_activa' not in st.session_state: st.session_state['seccion_activa'] = "Buscador"
-# Control de vista Login vs Registro
 if 'modo_registro' not in st.session_state: st.session_state['modo_registro'] = False
 
-# --- ENCRIPTACIÓN ---
+# --- UTILS ---
 def encriptar(password):
     return hashlib.sha256(str(password).encode()).hexdigest()
 
-# --- TELEGRAM ---
 def enviar_telegram(mensaje):
     try:
         token = st.secrets["general"]["telegram_token"]
@@ -56,10 +48,8 @@ def enviar_telegram(mensaje):
         url = f"https://api.telegram.org/bot{token}/sendMessage"
         data = {"chat_id": chat_id, "text": mensaje, "parse_mode": "HTML"}
         requests.post(url, data=data)
-    except:
-        pass
+    except: pass
 
-# --- GOOGLE SHEETS ---
 @st.cache_resource
 def conectar_sheet():
     try:
@@ -67,27 +57,19 @@ def conectar_sheet():
         json_creds = json.loads(st.secrets["general"]["google_json"])
         creds = ServiceAccountCredentials.from_json_keyfile_dict(json_creds, scope)
         client = gspread.authorize(creds)
-        
         archivo = client.open("BuscadorDB")
-        sheet_datos = archivo.sheet1
-        try: sheet_reportes = archivo.worksheet("Reportes")
-        except: sheet_reportes = None
-        try: sheet_usuarios = archivo.worksheet("Usuarios")
-        except: sheet_usuarios = None
-            
-        return sheet_datos, sheet_reportes, sheet_usuarios
-    except Exception as e:
-        return None, None, None
+        return archivo.sheet1, archivo.worksheet("Reportes"), archivo.worksheet("Usuarios")
+    except: return None, None, None
 
 hoja, hoja_reportes, hoja_usuarios = conectar_sheet()
 
 # ==========================================
-# 1. SISTEMA DE ACCESO (LOGIN / REGISTRO)
+# 1. SISTEMA DE ACCESO
 # ==========================================
 def mostrar_login():
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # --- VISTA 1: FORMULARIO DE REGISTRO (CREAR CUENTA) ---
+    # --- VISTA REGISTRO ---
     if st.session_state['modo_registro']:
         st.title("📝 Solicitar Cuenta")
         st.caption("Llena tus datos. El administrador deberá aprobarte.")
@@ -99,9 +81,7 @@ def mostrar_login():
             reg_correo = st.text_input("Correo:")
             reg_pass = st.text_input("Contraseña:", type="password")
             
-            btn_registrar = st.form_submit_button("Enviar Solicitud", use_container_width=True)
-            
-            if btn_registrar:
+            if st.form_submit_button("Enviar Solicitud", use_container_width=True):
                 if reg_nombre and reg_tel and reg_pass:
                     if hoja_usuarios:
                         try:
@@ -110,105 +90,87 @@ def mostrar_login():
                             existe = False
                             for u in usuarios_db:
                                 if str(u.get('Telefono', '')).strip() == reg_tel.strip():
-                                    existe = True
-                                    break
+                                    existe = True; break
                             
                             if existe:
-                                st.error("⚠️ Este teléfono ya está registrado.")
+                                st.error("⚠️ Teléfono ya registrado.")
                             else:
-                                # GUARDAR COMO PENDIENTE
-                                hoja_usuarios.append_row([
-                                    reg_tel, 
-                                    encriptar(reg_pass), 
-                                    reg_nombre, 
-                                    reg_apellido, 
-                                    reg_correo, 
-                                    "Pendiente"
-                                ])
-                                enviar_telegram(f"🔔 <b>NUEVO USUARIO</b>\n👤 {reg_nombre} {reg_apellido}\n📱 {reg_tel}\n⚠️ <b>Estado:</b> Pendiente")
-                                st.success("✅ Solicitud enviada con éxito.")
-                                st.info("Espera a que el administrador active tu cuenta.")
-                                time.sleep(4)
-                                st.session_state['modo_registro'] = False # Volver al login
+                                # Guardar como Pendiente
+                                hoja_usuarios.append_row([reg_tel, encriptar(reg_pass), reg_nombre, reg_apellido, reg_correo, "Pendiente"])
+                                enviar_telegram(f"🔔 <b>NUEVO</b>\n👤 {reg_nombre} {reg_apellido}\n📱 {reg_tel}\n⚠️ Estado: Pendiente")
+                                st.success("✅ Solicitud enviada.")
+                                st.info("Espera aprobación del administrador.")
+                                time.sleep(3)
+                                st.session_state['modo_registro'] = False
                                 st.rerun()
-                        except Exception as e:
-                            st.error(f"Error: {e}")
-                else:
-                    st.error("Faltan datos obligatorios.")
+                        except Exception as e: st.error(f"Error: {e}")
+                else: st.error("Faltan datos.")
         
         st.markdown("---")
-        if st.button("⬅️ Volver al Ingreso", use_container_width=True):
+        if st.button("⬅️ Volver", use_container_width=True):
             st.session_state['modo_registro'] = False
             st.rerun()
 
-    # --- VISTA 2: LOGIN (ENTRAR) ---
+    # --- VISTA LOGIN ---
     else:
         st.title("🔒 Ingreso")
-        
         with st.form("login_form"):
             tel_input = st.text_input("📱 Teléfono")
             pass_input = st.text_input("🔑 Contraseña", type="password")
-            entrar = st.form_submit_button("Entrar", use_container_width=True)
             
-            if entrar:
+            if st.form_submit_button("Entrar", use_container_width=True):
                 if hoja_usuarios:
                     try:
                         usuarios_db = hoja_usuarios.get_all_records()
                         encontrado = False
-                        
                         for i, u in enumerate(usuarios_db):
-                            fila_excel = i + 2
                             db_tel = str(u.get('Telefono', '')).strip()
                             db_pass = str(u.get('Password', '')).strip()
-                            db_estado = str(u.get('Estado', '')).strip()
+                            db_estado = str(u.get('Estado', '')).strip().lower() # Leemos el estado
                             
-                            es_temporal = (db_pass == pass_input.strip())
-                            es_encriptada = (db_pass == encriptar(pass_input.strip()))
-                            
-                            if db_tel == tel_input.strip() and (es_temporal or es_encriptada):
+                            if db_tel == tel_input.strip() and (db_pass == pass_input.strip() or db_pass == encriptar(pass_input.strip())):
                                 encontrado = True
                                 
-                                if db_estado.lower() == "activo":
+                                # LÓGICA DE ESTADOS
+                                if db_estado == "activo":
                                     st.session_state['logueado'] = True
                                     st.session_state['usuario_telefono'] = db_tel
-                                    st.session_state['fila_usuario'] = fila_excel 
+                                    st.session_state['fila_usuario'] = i + 2
+                                    st.session_state['user_nombre'] = str(u.get('Nombre', '')).strip()
+                                    st.session_state['user_apellido'] = str(u.get('Apellido', '')).strip()
+                                    st.session_state['user_correo'] = str(u.get('Correo', '')).strip()
                                     
-                                    # Cargar datos
-                                    nombre_db = str(u.get('Nombre', '')).strip()
-                                    apellido_db = str(u.get('Apellido', '')).strip()
-                                    correo_db = str(u.get('Correo', '')).strip()
-                                    
-                                    st.session_state['user_nombre'] = nombre_db
-                                    st.session_state['user_apellido'] = apellido_db
-                                    st.session_state['user_correo'] = correo_db
-                                    
-                                    if nombre_db:
+                                    if st.session_state['user_nombre']:
                                         st.session_state['datos_completos'] = True
-                                        st.session_state['usuario_nombre_completo'] = f"{nombre_db} {apellido_db}"
+                                        st.session_state['usuario_nombre_completo'] = f"{st.session_state['user_nombre']} {st.session_state['user_apellido']}"
                                     else:
                                         st.session_state['datos_completos'] = False
-                                    
-                                    st.success(f"¡Hola {nombre_db}!")
+                                        
+                                    st.success(f"¡Hola {st.session_state['user_nombre']}!")
                                     time.sleep(0.5)
                                     st.rerun()
+                                
+                                elif db_estado == "pendiente":
+                                    st.warning("⏳ Tu cuenta está **Pendiente**. El administrador aún no la ha aprobado.")
+                                
+                                elif db_estado == "desactivado":
+                                    st.error("⛔ Tu cuenta ha sido **Desactivada**. Contacta al soporte.")
+                                
                                 else:
-                                    st.warning("⏳ Cuenta Pendiente. Contacta al administrador.")
+                                    st.error("⚠️ Estado de cuenta desconocido.")
                                 break
                         
-                        if not encontrado:
-                            st.error("Datos incorrectos.")
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+                        if not encontrado: st.error("Datos incorrectos.")
+                    except Exception as e: st.error(f"Error: {e}")
 
-        # BOTÓN DE CREAR CUENTA (FUERA DEL FORM)
-        st.write("") # Espacio
+        st.write("")
         st.markdown("¿No tienes cuenta?")
         if st.button("📝 Crear Cuenta Nueva", use_container_width=True):
             st.session_state['modo_registro'] = True
             st.rerun()
 
 # ==========================================
-# 2. PANTALLA DE PERFIL INICIAL (SOLO SI FALTAN DATOS)
+# 2. PERFIL INICIAL
 # ==========================================
 def mostrar_registro_inicial():
     st.title("👋 Completar Perfil")
@@ -217,7 +179,6 @@ def mostrar_registro_inicial():
         with c1: nuevo_nombre = st.text_input("Nombre:")
         with c2: nuevo_apellido = st.text_input("Apellido:")
         nuevo_correo = st.text_input("Correo:")
-        st.markdown("---")
         
         if st.form_submit_button("Guardar Datos", use_container_width=True):
             if nuevo_nombre:
@@ -239,12 +200,8 @@ def mostrar_registro_inicial():
 # 3. APP PRINCIPAL
 # ==========================================
 def mostrar_app():
-    
-    # --- CABECERA ---
     st.markdown(f"### 👋 Hola, {st.session_state['user_nombre']}")
     st.markdown("---")
-
-    # --- CONTENIDO ---
     seccion = st.session_state['seccion_activa']
 
     # 1. BUSCADOR
@@ -254,7 +211,6 @@ def mostrar_app():
         except: st.stop()
         
         lista_dirs = [str(r.get('Direccion', '')) for r in registros if r.get('Direccion')]
-        
         st.subheader("🔍 Buscar Dirección")
         busqueda = st.selectbox("Escribe dirección:", options=lista_dirs, index=None, placeholder="Tocá aquí para buscar...")
         
@@ -270,7 +226,6 @@ def mostrar_app():
                         st.markdown(f"📍 **{item.get('Direccion')}**")
                         st.write(f"🏙 {item.get('Ciudad')}, {item.get('Estado')}")
                         st.markdown(f"## 🔑 {item.get('Codigo')}")
-                        
                         with st.expander("Reportar Error"):
                             with st.form(f"rep_{item.get('_id')}"):
                                 nc = st.text_input("Nuevo código:")
@@ -278,10 +233,9 @@ def mostrar_app():
                                 if st.form_submit_button("Reportar"):
                                     quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
                                     hoja_reportes.append_row([item.get('Direccion'), item.get('Ciudad'), item.get('Codigo'), nc, nt, quien])
-                                    enviar_telegram(f"🚨 <b>REPORTE</b>\n👤 {st.session_state['usuario_nombre_completo']}\n📍 {item.get('Direccion')}\n🔑 {nc}")
+                                    enviar_telegram(f"🚨 <b>REPORTE</b>\n👤 {quien}\n📍 {item.get('Direccion')}\n🔑 {nc}")
                                     st.success("Enviado")
-        else:
-            st.info("Utiliza el botón '➕ Nuevo' abajo si la dirección no existe.")
+        else: st.info("Utiliza el botón '➕ Nuevo' abajo si la dirección no existe.")
 
     # 2. REGISTRAR
     elif seccion == "Registrar":
@@ -297,13 +251,12 @@ def mostrar_app():
                 if nd and co:
                     quien = f"{st.session_state['usuario_nombre_completo']} ({st.session_state['usuario_telefono']})"
                     hoja.append_row([nd, ci, es, co, quien])
-                    enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {st.session_state['usuario_nombre_completo']}\n📍 {nd}\n🔑 {co}")
+                    enviar_telegram(f"🆕 <b>NUEVO</b>\n👤 {quien}\n📍 {nd}\n🔑 {co}")
                     st.success("Guardado")
                     time.sleep(1)
                     st.session_state['seccion_activa'] = "Buscador"
                     st.rerun()
-                else:
-                    st.error("Faltan datos")
+                else: st.error("Faltan datos")
 
     # 3. SUGERENCIAS
     elif seccion == "Sugerencias":
@@ -356,40 +309,23 @@ def mostrar_app():
                                 else: st.error("No coinciden")
                             else: st.error("Clave actual mal")
 
-    # --- BARRA DE NAVEGACIÓN INFERIOR ---
     st.markdown("---")
     st.markdown("<br>", unsafe_allow_html=True)
-    
     c_nav1, c_nav2, c_nav3, c_nav4, c_nav5 = st.columns(5)
-    
     with c_nav1:
-        if st.button("🔍 Buscar", use_container_width=True):
-            st.session_state['seccion_activa'] = "Buscador"
-            st.rerun()
+        if st.button("🔍 Buscar", use_container_width=True): st.session_state['seccion_activa'] = "Buscador"; st.rerun()
     with c_nav2:
-        if st.button("➕ Nuevo", use_container_width=True):
-            st.session_state['seccion_activa'] = "Registrar"
-            st.rerun()
+        if st.button("➕ Nuevo", use_container_width=True): st.session_state['seccion_activa'] = "Registrar"; st.rerun()
     with c_nav3:
-        if st.button("💬 Ideas", use_container_width=True):
-            st.session_state['seccion_activa'] = "Sugerencias"
-            st.rerun()
+        if st.button("💬 Ideas", use_container_width=True): st.session_state['seccion_activa'] = "Sugerencias"; st.rerun()
     with c_nav4:
-        if st.button("⚙️ Perfil", use_container_width=True):
-            st.session_state['seccion_activa'] = "Perfil"
-            st.rerun()
+        if st.button("⚙️ Perfil", use_container_width=True): st.session_state['seccion_activa'] = "Perfil"; st.rerun()
     with c_nav5:
         if st.button("🚪 Salir", use_container_width=True):
             for key in st.session_state.keys(): del st.session_state[key]
             st.rerun()
 
-# ==========================================
-# CONTROL DE FLUJO
-# ==========================================
-if not st.session_state['logueado']: 
-    mostrar_login()
+if not st.session_state['logueado']: mostrar_login()
 else:
-    if st.session_state['datos_completos']: 
-        mostrar_app()
-    else: 
-        mostrar_registro_inicial()
+    if st.session_state['datos_completos']: mostrar_app()
+    else: mostrar_registro_inicial()
